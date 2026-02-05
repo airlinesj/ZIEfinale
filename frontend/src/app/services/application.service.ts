@@ -54,6 +54,16 @@ export class ApplicationService {
     return this.http.post(this.apiUrl, data, { headers: this.getHeaders() });
   }
 
+  submitApplicationWithFiles(formData: FormData): Observable<any> {
+    const token = localStorage.getItem('token');
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`,
+    });
+    // Note: Do NOT set Content-Type header when using FormData
+    // The browser will set it automatically with the correct boundary
+    return this.http.post(this.apiUrl, formData, { headers });
+  }
+
   getApplications(): Observable<any[]> {
     return this.http.get<any[]>(this.apiUrl, { headers: this.getHeaders() });
   }
@@ -72,5 +82,17 @@ export class ApplicationService {
 
   getAllApplications(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/admin/all`, { headers: this.getHeaders() });
+  }
+
+  updateApplicationChecklist(id: string, checklistData: any): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${id}/checklist`,
+      checklistData,
+      { headers: this.getHeaders() }
+    );
+  }
+
+  getVerificationReport(id: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/${id}/verification-report`, { headers: this.getHeaders() });
   }
 }

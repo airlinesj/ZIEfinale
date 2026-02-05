@@ -9,19 +9,19 @@ export const submitSponsorAppraisal = async (req: AuthRequest, res: Response) =>
       req.body;
 
     // Find application by sponsor token
-    const application = await Application.findOne({ 'sponsors.token': token });
+    const application = await Application.findOne({ 'sponsors.appraisalToken': token });
 
     if (!application) {
       return res.status(404).json({ message: 'Appraisal not found' });
     }
 
     // Find the sponsor and update response
-    const sponsor = application.sponsors.find((s: any) => s.token === token);
+    const sponsor = application.sponsors.find((s: any) => s.appraisalToken === token);
     if (!sponsor) {
       return res.status(404).json({ message: 'Sponsor not found' });
     }
 
-    sponsor.appraisalResponse = {
+    sponsor.responses = {
       question1,
       question2,
       question3,
@@ -30,10 +30,10 @@ export const submitSponsorAppraisal = async (req: AuthRequest, res: Response) =>
       question6,
       question7,
       question8,
-      submittedAt: new Date(),
     };
 
-    sponsor.responseFlags = ['Confidential'];
+    sponsor.submittedAt = new Date();
+    sponsor.isConfidential = true;
 
     await application.save();
 
@@ -50,7 +50,7 @@ export const getSponsorAppraisal = async (req: AuthRequest, res: Response) => {
   try {
     const { token } = req.params;
 
-    const application = await Application.findOne({ 'sponsors.token': token }).select(
+    const application = await Application.findOne({ 'sponsors.appraisalToken': token }).select(
       'personalParticulars chosenGrade sponsors'
     );
 
@@ -58,7 +58,7 @@ export const getSponsorAppraisal = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Appraisal not found' });
     }
 
-    const sponsor = application.sponsors.find((s: any) => s.token === token);
+    const sponsor = application.sponsors.find((s: any) => s.appraisalToken === token);
     if (!sponsor) {
       return res.status(404).json({ message: 'Sponsor not found' });
     }
@@ -66,7 +66,7 @@ export const getSponsorAppraisal = async (req: AuthRequest, res: Response) => {
     res.json({
       applicantName: `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
       grade: application.chosenGrade,
-      hasResponded: !!sponsor.appraisalResponse,
+      hasResponded: !!sponsor.responses,
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });

@@ -12,6 +12,13 @@ export const register = async (req: AuthRequest, res: Response) => {
 
     const { email, password, role } = req.body;
 
+    // Validate admin email format
+    if (role === 'Admin' && !email.includes('@admin')) {
+      return res.status(400).json({ 
+        message: 'Admin accounts must use an email address containing @admin (e.g., admin@admin.com)' 
+      });
+    }
+
     // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -39,6 +46,7 @@ export const register = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };

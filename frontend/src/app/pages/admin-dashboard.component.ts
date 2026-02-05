@@ -123,52 +123,55 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="details-section">
-            <h3>Application Information</h3>
+            <h3>Automated Grading & Division</h3>
             <div class="detail-row">
-              <span class="label">Grade:</span>
-              <span>{{ selectedApplication.chosenGrade }}</span>
+              <span class="label">Suggested Grade:</span>
+              <span class="suggested-value">{{ selectedApplication.suggestedGrade }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">Specialist Division:</span>
-              <span>{{ selectedApplication.chosenSpecialistDivision }}</span>
+              <span class="label">Suggested Division:</span>
+              <span class="suggested-value">{{ selectedApplication.suggestedDivision }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">Application Fee:</span>
-              <span>${{ selectedApplication.applicationFee }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Current Status:</span>
-              <span class="status-badge" [ngClass]="'status-' + selectedApplication.status.toLowerCase().replace(' ', '-')">
-                {{ selectedApplication.status }}
-              </span>
+              <span class="label">User Summary:</span>
+              <span>{{ selectedApplication.userSummary }}</span>
             </div>
           </div>
 
           <div class="checklist-section">
-            <h3>Document Verification Checklist</h3>
+            <h3>8-Point Verification Checklist (ZIE Manual Process)</h3>
+            <p class="checklist-progress">Progress: {{ getChecklistProgress() }}</p>
             <div class="checklist-item">
-              <input type="checkbox" id="photo" />
-              <label for="photo">Photo Provided</label>
+              <input type="checkbox" id="photo" [(ngModel)]="selectedApplication.adminChecklist.photo" />
+              <label for="photo">Photo - Professional photograph verified and attached</label>
             </div>
             <div class="checklist-item">
-              <input type="checkbox" id="signature" />
-              <label for="signature">Signature Provided</label>
+              <input type="checkbox" id="m1Form" [(ngModel)]="selectedApplication.adminChecklist.m1Form" />
+              <label for="m1Form">M1 Form - Membership Application Form completed and signed</label>
             </div>
             <div class="checklist-item">
-              <input type="checkbox" id="nationalId" />
-              <label for="nationalId">National ID Copy</label>
+              <input type="checkbox" id="signature" [(ngModel)]="selectedApplication.adminChecklist.signature" />
+              <label for="signature">Signature - Applicant signature verified on application</label>
             </div>
             <div class="checklist-item">
-              <input type="checkbox" id="certificates" />
-              <label for="certificates">Certified Certificates</label>
-            </div>
-            <div class="checklist-item" *ngIf="selectedApplication.documents?.technicalReport">
-              <input type="checkbox" id="report" />
-              <label for="report">Technical Report</label>
+              <input type="checkbox" id="trainingReport" [(ngModel)]="selectedApplication.adminChecklist.trainingReport" />
+              <label for="trainingReport">Training Report - Professional training and development report submitted</label>
             </div>
             <div class="checklist-item">
-              <input type="checkbox" id="organogram" />
-              <label for="organogram">Organogram (if required)</label>
+              <input type="checkbox" id="projectReport" [(ngModel)]="selectedApplication.adminChecklist.projectReport" />
+              <label for="projectReport">Project Report - Technical project report demonstrating competence</label>
+            </div>
+            <div class="checklist-item">
+              <input type="checkbox" id="organogram" [(ngModel)]="selectedApplication.adminChecklist.organogram" />
+              <label for="organogram">Organogram - Organizational structure showing applicant role</label>
+            </div>
+            <div class="checklist-item">
+              <input type="checkbox" id="sponsorships" [(ngModel)]="selectedApplication.adminChecklist.sponsorships" />
+              <label for="sponsorships">Sponsorships - Required sponsor appraisals received and verified</label>
+            </div>
+            <div class="checklist-item">
+              <input type="checkbox" id="certificates" [(ngModel)]="selectedApplication.adminChecklist.certificates" />
+              <label for="certificates">Certificates - Educational and professional certificates verified</label>
             </div>
           </div>
 
@@ -184,24 +187,39 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="action-section">
+            <div class="detail-row">
+              <span class="label">Chosen Grade:</span>
+              <span>{{ selectedApplication.chosenGrade }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Chosen Division:</span>
+              <span>{{ selectedApplication.chosenSpecialistDivision }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Application Fee:</span>
+              <span>{{ selectedApplication.applicationFee }}</span>
+            </div>
+
             <label for="statusUpdate">Update Application Status:</label>
             <select [(ngModel)]="selectedStatus" class="form-input">
               <option value="">Select Status</option>
               <option value="Submitted">Submitted</option>
               <option value="Under Review">Under Review</option>
-              <option value="Approved">Approved</option>
+              <option value="Approved">Approved (All checklist items must be verified)</option>
               <option value="Pending">Pending</option>
               <option value="Interview Required">Interview Required</option>
+              <option value="Approved with Conditions">Approved with Conditions</option>
               <option value="Rejected">Rejected</option>
             </select>
 
             <textarea
-              [(ngModel)]="adminNotes"
+              [(ngModel)]="selectedApplication.adminNotes"
               placeholder="Admin notes for this application..."
               class="form-input notes"
             ></textarea>
 
             <div class="modal-buttons">
+              <button (click)="updateApplicationChecklist()" class="btn-primary">Save Checklist & Notes</button>
               <button (click)="updateApplicationStatus()" class="btn-primary">Update Status</button>
               <button (click)="closeModal()" class="btn-secondary">Close</button>
             </div>
@@ -484,35 +502,50 @@ import { AuthService } from '../services/auth.service';
         font-weight: 600;
         color: #004A59;
       }
+
+      .suggested-value {
+        color: #B99532;
+        font-weight: 600;
+      }
     }
 
     .checklist-section {
-      border: 2.5px solid #004A59;
+      border: 2.5px solid #B99532;
       padding: 15px;
       margin-bottom: 15px;
       border-radius: 4px;
+      background-color: #fffaf0;
 
       h3 {
         color: #004A59;
         margin: 0 0 10px 0;
       }
 
+      .checklist-progress {
+        font-weight: 600;
+        color: #B99532;
+        margin: 0 0 15px 0;
+      }
+
       .checklist-item {
         display: flex;
-        align-items: center;
-        padding: 8px 0;
+        align-items: flex-start;
+        padding: 10px 0;
 
         input {
-          margin-right: 10px;
-          width: 18px;
-          height: 18px;
+          margin-right: 12px;
+          margin-top: 2px;
+          width: 20px;
+          height: 20px;
           cursor: pointer;
-          border: 2.5px solid #004A59;
+          border: 2.5px solid #B99532;
+          accent-color: #B99532;
         }
 
         label {
           cursor: pointer;
           margin: 0;
+          line-height: 1.4;
         }
       }
     }
@@ -620,7 +653,6 @@ export class AdminDashboardComponent implements OnInit {
   filteredApplications: any[] = [];
   selectedApplication: any = null;
   selectedStatus = '';
-  adminNotes = '';
   searchTerm = '';
   statusFilter = '';
   updateSuccess = false;
@@ -669,13 +701,53 @@ export class AdminDashboardComponent implements OnInit {
   openApplicationDetails(appId: string): void {
     this.selectedApplication = this.applications.find((app) => app._id === appId);
     this.selectedStatus = this.selectedApplication?.status || '';
-    this.adminNotes = '';
     this.updateSuccess = false;
     this.updateError = '';
   }
 
   closeModal(): void {
     this.selectedApplication = null;
+  }
+
+  getChecklistProgress(): string {
+    if (!this.selectedApplication) return '0/8';
+    const checklist = this.selectedApplication.adminChecklist;
+    const checked = Object.values(checklist).filter((v: any) => v === true).length;
+    const total = Object.keys(checklist).length;
+    return `${checked}/${total}`;
+  }
+
+  updateApplicationChecklist(): void {
+    if (!this.selectedApplication) return;
+
+    const checklistData = {
+      photo: this.selectedApplication.adminChecklist.photo,
+      m1Form: this.selectedApplication.adminChecklist.m1Form,
+      signature: this.selectedApplication.adminChecklist.signature,
+      trainingReport: this.selectedApplication.adminChecklist.trainingReport,
+      projectReport: this.selectedApplication.adminChecklist.projectReport,
+      organogram: this.selectedApplication.adminChecklist.organogram,
+      sponsorships: this.selectedApplication.adminChecklist.sponsorships,
+      certificates: this.selectedApplication.adminChecklist.certificates,
+      adminNotes: this.selectedApplication.adminNotes,
+    };
+
+    this.applicationService.updateApplicationChecklist(this.selectedApplication._id, checklistData).subscribe({
+      next: (response) => {
+        this.updateSuccess = true;
+        this.updateError = '';
+
+        // Update local application
+        const appIndex = this.applications.findIndex((app) => app._id === this.selectedApplication._id);
+        if (appIndex !== -1) {
+          this.applications[appIndex] = { ...this.applications[appIndex], ...checklistData };
+          this.filteredApplications = [...this.applications];
+        }
+      },
+      error: (error) => {
+        this.updateError = error.error?.message || 'Failed to update checklist';
+      },
+    });
   }
 
   updateApplicationStatus(): void {
@@ -701,7 +773,7 @@ export class AdminDashboardComponent implements OnInit {
         }, 2000);
       },
       error: (error) => {
-        this.updateError = error.error?.message || 'Failed to update status';
+        this.updateError = error.error?.reason || error.error?.message || 'Failed to update status';
       },
     });
   }

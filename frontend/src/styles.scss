@@ -75,10 +75,11 @@ input, .card, .btn, .form-container, .upload-zone {
 
 .container {
   margin-top: 80px;
+  margin-left: 250px;
   padding: 20px;
   max-width: 1200px;
-  margin-left: auto;
   margin-right: auto;
+  transition: margin-left 0.3s ease;
 }
 
 .card {

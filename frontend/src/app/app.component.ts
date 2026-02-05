@@ -1,18 +1,95 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, OnInit } from '@angular/core';
+import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { HeaderComponent } from './components/header.component';
+import { SidebarComponent } from './components/sidebar.component';
+import { AuthService } from './services/auth.service';
 import { CommonModule } from '@angular/common';
+import { filter } from 'rxjs';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, CommonModule],
+  imports: [RouterOutlet, HeaderComponent, SidebarComponent, CommonModule],
   template: `
-    <app-header></app-header>
-    <router-outlet></router-outlet>
+    <app-header *ngIf="!isLandingPage && !isAuthPage"></app-header>
+    <app-sidebar *ngIf="!isLandingPage && !isAuthPage" (sidebarCollapseChange)="onSidebarCollapse($event)"></app-sidebar>
+    <div class="main-content" [ngClass]="{ 'with-sidebar': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && !sidebarCollapsed, 'sidebar-collapsed': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && sidebarCollapsed, 'landing': isLandingPage }">
+      <router-outlet></router-outlet>
+    </div>
   `,
-  styles: [],
+  styles: [`
+    .main-content {
+      margin-top: 80px;
+      transition: margin-left 0.3s ease;
+      min-height: calc(100vh - 80px);
+    }
+
+    .main-content.landing {
+      margin-top: 0;
+      height: 100vh;
+    }
+
+    .main-content.with-sidebar {
+      margin-left: 250px;
+    }
+
+    .main-content.sidebar-collapsed {
+      margin-left: 80px;
+    }
+
+    @media (max-width: 768px) {
+      .main-content.with-sidebar {
+        margin-left: 200px;
+      }
+
+      .main-content.sidebar-collapsed {
+        margin-left: 70px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .main-content.with-sidebar,
+      .main-content.sidebar-collapsed {
+        margin-left: 0;
+      }
+    }
+  `],
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   title = 'zie-frontend';
+  isLoggedIn = false;
+  isAdmin = false;
+  isLandingPage = false;
+  isAuthPage = false;
+  sidebarCollapsed = false;
+
+  constructor(private authService: AuthService, private router: Router) {}
+
+  ngOnInit(): void {
+    // Check current route on init
+    this.updatePageStatus();
+
+    // Listen to route changes
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.updatePageStatus();
+      });
+
+    // Subscribe to auth state
+    this.authService.currentUser$.subscribe(user => {
+      this.isLoggedIn = !!user;
+      this.isAdmin = user?.role === 'Admin';
+    });
+  }
+
+  onSidebarCollapse(collapsed: boolean): void {
+    this.sidebarCollapsed = collapsed;
+  }
+
+  private updatePageStatus(): void {
+    this.isLandingPage = this.router.url === '/';
+    const authPages = ['/login', '/register'];
+    this.isAuthPage = authPages.includes(this.router.url);
+  }
 }

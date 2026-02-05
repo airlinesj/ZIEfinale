@@ -277,7 +277,7 @@ import { MatSelectModule } from '@angular/material/select';
                   <li *ngIf="selectedGradeRequirements.requiresDiploma">Diploma or higher qualification required</li>
                   <li *ngIf="selectedGradeRequirements.requiresTechnicalReport">Technical Project Report required</li>
                   <li>Minimum {{ selectedGradeRequirements.minYearsExperience }} years experience</li>
-                  <li>Application Fee: ${{ selectedGradeRequirements.baseFee }} USD</li>
+                  <li>Application Fee: {{ selectedGradeRequirements.baseFee }} USD</li>
                 </ul>
               </div>
 
@@ -411,23 +411,25 @@ import { MatSelectModule } from '@angular/material/select';
               <h4>Membership Grade</h4>
               <p><strong>Grade:</strong> {{ gradeForm.get('chosenGrade')?.value }}</p>
               <p><strong>Specialist Division:</strong> {{ gradeForm.get('chosenSpecialistDivision')?.value }}</p>
-              <p><strong>Application Fee:</strong> ${{ estimatedFee }} USD</p>
+              <p><strong>Application Fee:</strong> {{ estimatedFee }} USD</p>
             </div>
 
             <div class="review-section">
               <h4>Sponsors</h4>
               <ul>
                 <li *ngFor="let sponsor of sponsorsArray.controls">
-                  {{ (sponsor as any).get('name')?.value }} ({{ (sponsor as any).get('email')?.value }})
+                  {{ sponsor.get('name')?.value }} ({{ sponsor.get('email')?.value }})
                 </li>
               </ul>
             </div>
 
             <div class="review-section terms">
-              <label>
-                <input type="checkbox" formControlName="agreeTerms" />
-                <span>I certify that the information provided is accurate and complete</span>
-              </label>
+              <form [formGroup]="gradeForm">
+                <label>
+                  <input type="checkbox" formControlName="agreeTerms" />
+                  <span>I certify that the information provided is accurate and complete</span>
+                </label>
+              </form>
             </div>
 
             <div class="step-buttons">
@@ -446,9 +448,10 @@ import { MatSelectModule } from '@angular/material/select';
   `,
   styles: [`
     .form-container {
-      max-width: 800px;
-      margin: 100px auto 40px;
-      padding: 20px;
+      max-width: 100%;
+      width: 100%;
+      margin: 20px 0 40px 0;
+      padding: 30px;
     }
 
     h1 {
@@ -456,6 +459,7 @@ import { MatSelectModule } from '@angular/material/select';
       text-align: center;
       margin-bottom: 30px;
       font-weight: 700;
+      font-size: 28px;
     }
 
     .step-content {
@@ -657,6 +661,22 @@ export class FormM1Component implements OnInit {
   successMessage = '';
   estimatedFee = 0;
   selectedGradeRequirements: any = null;
+  
+  // File handling properties
+  uploadedFiles: {
+    nationalIdCopy?: File;
+    certificates: File[];
+    technicalReport?: File;
+  } = {
+    certificates: [],
+  };
+  uploadedFileNames: {
+    nationalIdCopy?: string;
+    certificates: string[];
+    technicalReport?: string;
+  } = {
+    certificates: [],
+  };
 
   constructor(
     private fb: FormBuilder,
@@ -769,6 +789,94 @@ export class FormM1Component implements OnInit {
     this.selectedGradeRequirements = this.getGradeRequirements(grade);
   }
 
+  /**
+   * Calculate auto-grade based on education level and years of experience
+   */
+  calculateAutoGrade(): void {
+    const educationArray = this.educationForm.get('education') as FormArray;
+    const experienceArray = this.experienceForm.get('experience') as FormArray;
+
+    if (educationArray.length === 0 || experienceArray.length === 0) {
+      return;
+    }
+
+    // Get highest education level
+    const qualifications = educationArray.controls.map(edu => edu.get('qualification')?.value || '');
+    const highestQualification = this.getHighestEducationLevel(qualifications);
+
+    // Calculate years of experience
+    const yearsOfExperience = this.calculateYearsOfExperience();
+
+    // Determine grade based on education and experience
+    let suggestedGrade = 'Student';
+
+    if (highestQualification.includes('Honours') && yearsOfExperience >= 3) {
+      suggestedGrade = 'Member';
+    } else if (highestQualification.includes('Diploma') && yearsOfExperience >= 3) {
+      suggestedGrade = 'Technician';
+    } else if (highestQualification.includes('Degree') && yearsOfExperience >= 5) {
+      suggestedGrade = 'Technologist';
+    } else if (yearsOfExperience >= 10) {
+      suggestedGrade = 'Fellow';
+    } else if (yearsOfExperience >= 2) {
+      suggestedGrade = 'Graduate Member';
+    }
+
+    // Auto-set the grade if not already set
+    if (!this.gradeForm.get('chosenGrade')?.value) {
+      this.gradeForm.patchValue({ chosenGrade: suggestedGrade });
+      this.onGradeChange();
+    }
+
+    console.log(`Auto-calculated grade: ${suggestedGrade} (Education: ${highestQualification}, Experience: ${yearsOfExperience} years)`);
+  }
+
+  /**
+   * Get the highest education level from qualifications
+   */
+  private getHighestEducationLevel(qualifications: string[]): string {
+    const levels = {
+      'Honours': 4,
+      'Degree': 3,
+      'Diploma': 2,
+      'Certificate': 1,
+    };
+
+    let highest = 'Certificate';
+    let highestScore = 0;
+
+    qualifications.forEach(qual => {
+      Object.entries(levels).forEach(([level, score]) => {
+        if (qual.toLowerCase().includes(level.toLowerCase()) && score > highestScore) {
+          highest = level;
+          highestScore = score;
+        }
+      });
+    });
+
+    return highest;
+  }
+
+  /**
+   * Calculate total years of experience
+   */
+  private calculateYearsOfExperience(): number {
+    const experienceArray = this.experienceForm.get('experience') as FormArray;
+    let totalYears = 0;
+
+    experienceArray.controls.forEach(exp => {
+      const startYear = parseInt(exp.get('startYear')?.value || '0', 10);
+      const endYearStr = exp.get('endYear')?.value || new Date().getFullYear().toString();
+      const endYear = endYearStr.toLowerCase() === 'present' ? new Date().getFullYear() : parseInt(endYearStr, 10);
+
+      if (startYear > 0 && endYear >= startYear) {
+        totalYears += endYear - startYear;
+      }
+    });
+
+    return totalYears;
+  }
+
   getFeByGrade(grade: string): number {
     const fees: { [key: string]: number } = {
       'Student': 45,
@@ -794,8 +902,42 @@ export class FormM1Component implements OnInit {
   }
 
   onFileSelected(event: any, fieldName: string): void {
-    console.log(`Files selected for ${fieldName}:`, event.target.files);
-    // TODO: Implement file upload logic
+    const files = event.target.files;
+    
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    // Validate PDF files
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      // Check file type
+      if (file.type !== 'application/pdf') {
+        this.errorMessage = `${file.name} is not a PDF file. Please upload PDF files only.`;
+        return;
+      }
+      
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        this.errorMessage = `${file.name} is larger than 5MB. Please upload smaller files.`;
+        return;
+      }
+    }
+
+    // Store files based on field name
+    if (fieldName === 'nationalIdCopy') {
+      this.uploadedFiles.nationalIdCopy = files[0];
+      this.uploadedFileNames.nationalIdCopy = files[0].name;
+    } else if (fieldName === 'certificates') {
+      this.uploadedFiles.certificates = Array.from(files);
+      this.uploadedFileNames.certificates = Array.from(files).map(f => (f as File).name);
+    } else if (fieldName === 'technicalReport') {
+      this.uploadedFiles.technicalReport = files[0];
+      this.uploadedFileNames.technicalReport = files[0].name;
+    }
+
+    this.errorMessage = '';
   }
 
   submitApplication(): void {
@@ -816,7 +958,33 @@ export class FormM1Component implements OnInit {
       sponsors: this.sponsorsForm.get('sponsors')?.value,
     };
 
-    this.applicationService.submitApplication(applicationData).subscribe({
+    // Create FormData for file upload
+    const formData = new FormData();
+    
+    // Add individual form fields to FormData (multer processes files, fields are passed separately)
+    formData.append('personalParticulars', JSON.stringify(applicationData.personalParticulars));
+    formData.append('education', JSON.stringify(applicationData.education));
+    formData.append('experience', JSON.stringify(applicationData.experience));
+    formData.append('chosenGrade', applicationData.chosenGrade);
+    formData.append('chosenSpecialistDivision', applicationData.chosenSpecialistDivision);
+    formData.append('sponsors', JSON.stringify(applicationData.sponsors));
+    
+    // Add files
+    if (this.uploadedFiles.nationalIdCopy) {
+      formData.append('nationalIdCopy', this.uploadedFiles.nationalIdCopy);
+    }
+    
+    if (this.uploadedFiles.certificates && this.uploadedFiles.certificates.length > 0) {
+      this.uploadedFiles.certificates.forEach(cert => {
+        formData.append('certificateFiles', cert);
+      });
+    }
+    
+    if (this.uploadedFiles.technicalReport) {
+      formData.append('technicalReport', this.uploadedFiles.technicalReport);
+    }
+
+    this.applicationService.submitApplicationWithFiles(formData).subscribe({
       next: (response) => {
         this.isSubmitting = false;
         this.successMessage =

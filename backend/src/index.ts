@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import helmet from 'helmet';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import authRoutes from './routes/authRoutes';
 import applicationRoutes from './routes/applicationRoutes';
 import sponsorRoutes from './routes/sponsorRoutes';
@@ -16,9 +17,17 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/zie-db
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files statically
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Database connection
 mongoose

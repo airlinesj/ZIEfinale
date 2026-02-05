@@ -45,11 +45,14 @@ import { AuthService } from '../services/auth.service';
 
           <div class="form-group">
             <label for="role">Account Type</label>
-            <select id="role" formControlName="role" class="form-input">
+            <select id="role" formControlName="role" class="form-input" (change)="onRoleChange()">
               <option value="">Select Account Type</option>
               <option value="Applicant">Applicant (Membership Seeker)</option>
               <option value="Admin">Admin (Staff Only)</option>
             </select>
+            <p class="admin-note" *ngIf="registerForm.get('role')?.value === 'Admin'">
+              <strong>Admin accounts require an email address containing &#64;admin</strong> (e.g., admin&#64;admin.com)
+            </p>
           </div>
 
           <button type="submit" class="btn-primary" [disabled]="!registerForm.valid || isLoading">
@@ -166,6 +169,16 @@ import { AuthService } from '../services/auth.service';
       font-size: 12px;
       margin-top: 5px;
     }
+
+    .admin-note {
+      color: #B99532;
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 8px;
+      background-color: #fff3cd;
+      border-left: 3px solid #B99532;
+      padding-left: 10px;
+    }
   `]
 })
 export class RegisterComponent implements OnInit {
@@ -207,6 +220,14 @@ export class RegisterComponent implements OnInit {
         this.errorMessage = error.error?.message || 'Registration failed. Please try again.';
       },
     });
+  }
+
+  onRoleChange(): void {
+    // Force form re-validation when role changes
+    const emailControl = this.registerForm.get('email');
+    if (emailControl) {
+      emailControl.updateValueAndValidity();
+    }
   }
 
   goToLogin(): void {

@@ -1,5 +1,34 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface AdminChecklist {
+  photo: boolean;
+  m1Form: boolean;
+  signature: boolean;
+  trainingReport: boolean;
+  projectReport: boolean;
+  organogram: boolean;
+  sponsorships: boolean;
+  certificates: boolean;
+}
+
+export interface SponsorAppraisal {
+  sponsorEmail: string;
+  sponsorName: string;
+  appraisalToken: string;
+  responses?: {
+    question1: string;
+    question2: string;
+    question3: string;
+    question4: string;
+    question5: string;
+    question6: string;
+    question7: string;
+    question8: string;
+  };
+  submittedAt?: Date;
+  isConfidential: boolean;
+}
+
 export interface IEducation {
   institution: string;
   qualification: string;
@@ -17,6 +46,7 @@ export interface IExperience {
 
 export interface IApplication extends Document {
   userId: mongoose.Types.ObjectId;
+  userSummary: string;
   personalParticulars: {
     firstName: string;
     lastName: string;
@@ -30,32 +60,25 @@ export interface IApplication extends Document {
   education: IEducation[];
   experience: IExperience[];
   chosenGrade: 'Student' | 'Graduate' | 'Technician' | 'Technologist' | 'Member' | 'Fellow';
+  suggestedGrade: 'Student' | 'Graduate' | 'Technician' | 'Technologist' | 'Member' | 'Fellow';
   chosenSpecialistDivision: string;
+  suggestedDivision: string;
   applicationFee: number;
-  status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Pending' | 'Interview Required' | 'Rejected';
+  status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Pending' | 'Interview Required' | 'Rejected' | 'Approved with Conditions';
   documents: {
     nationalIdCopy: string;
     certificates: string[];
     technicalReport?: string;
     organogram?: string;
   };
-  sponsors: Array<{
-    name: string;
-    email: string;
-    token?: string;
-    appraisalResponse?: {
-      question1: string;
-      question2: string;
-      question3: string;
-      question4: string;
-      question5: string;
-      question6: string;
-      question7: string;
-      question8: string;
-      submittedAt: Date;
-    };
-    responseFlags: string[];
-  }>;
+  uploadedFiles: {
+    nationalIdPath?: string;         // Path to uploaded National ID PDF
+    certificatePaths: string[];      // Paths to uploaded Certificate PDFs
+  };
+  sponsors: SponsorAppraisal[];
+  adminChecklist: AdminChecklist;
+  adminNotes: string;
+  confidentialFlag: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,6 +89,10 @@ const applicationSchema = new Schema<IApplication>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    userSummary: {
+      type: String,
+      default: '',
     },
     personalParticulars: {
       firstName: { type: String, required: true },
@@ -99,9 +126,18 @@ const applicationSchema = new Schema<IApplication>(
       enum: ['Student', 'Graduate', 'Technician', 'Technologist', 'Member', 'Fellow'],
       required: true,
     },
+    suggestedGrade: {
+      type: String,
+      enum: ['Student', 'Graduate', 'Technician', 'Technologist', 'Member', 'Fellow'],
+      default: 'Graduate',
+    },
     chosenSpecialistDivision: {
       type: String,
       required: true,
+    },
+    suggestedDivision: {
+      type: String,
+      default: '',
     },
     applicationFee: {
       type: Number,
@@ -109,7 +145,7 @@ const applicationSchema = new Schema<IApplication>(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Pending', 'Interview Required', 'Rejected'],
+      enum: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Pending', 'Interview Required', 'Rejected', 'Approved with Conditions'],
       default: 'Draft',
     },
     documents: {
@@ -118,12 +154,16 @@ const applicationSchema = new Schema<IApplication>(
       technicalReport: String,
       organogram: String,
     },
+    uploadedFiles: {
+      nationalIdPath: { type: String },
+      certificatePaths: { type: [String], default: [] },
+    },
     sponsors: [
       {
-        name: String,
-        email: String,
-        token: String,
-        appraisalResponse: {
+        sponsorEmail: String,
+        sponsorName: String,
+        appraisalToken: String,
+        responses: {
           question1: String,
           question2: String,
           question3: String,
@@ -132,16 +172,34 @@ const applicationSchema = new Schema<IApplication>(
           question6: String,
           question7: String,
           question8: String,
-          submittedAt: Date,
         },
-        responseFlags: {
-          type: [String],
-          default: ['Confidential'],
-        },
+        submittedAt: Date,
+        isConfidential: { type: Boolean, default: true },
       },
     ],
+    adminChecklist: {
+      photo: { type: Boolean, default: false },
+      m1Form: { type: Boolean, default: false },
+      signature: { type: Boolean, default: false },
+      trainingReport: { type: Boolean, default: false },
+      projectReport: { type: Boolean, default: false },
+      organogram: { type: Boolean, default: false },
+      sponsorships: { type: Boolean, default: false },
+      certificates: { type: Boolean, default: false },
+    },
+    adminNotes: { type: String, default: '' },
+    confidentialFlag: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
+
+// Pre-save middleware to generate user summary
+applicationSchema.pre('save', function (next) {
+  if (this.personalParticulars && this.chosenGrade && this.chosenSpecialistDivision) {
+    const { firstName, lastName } = this.personalParticulars;
+    this.userSummary = `${firstName} ${lastName} - Applicant for ${this.chosenGrade} Grade in ${this.chosenSpecialistDivision} Division`;
+  }
+  next();
+});
 
 export const Application = mongoose.model<IApplication>('Application', applicationSchema);
