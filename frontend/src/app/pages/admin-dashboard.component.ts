@@ -123,6 +123,44 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="details-section">
+            <h3>Uploaded Documents</h3>
+            <div class="documents-section">
+              <div class="document-item">
+                <span class="label">National ID Copy (PDF):</span>
+                <a *ngIf="selectedApplication.uploadedFiles?.nationalIdPath" 
+                   [href]="'http://localhost:5000/api/uploads/' + selectedApplication.uploadedFiles.nationalIdPath"
+                   target="_blank" 
+                   class="document-link">
+                  📄 View PDF
+                </a>
+                <span *ngIf="!selectedApplication.uploadedFiles?.nationalIdPath" class="no-document">Not uploaded</span>
+              </div>
+              <div class="document-item">
+                <span class="label">Certificates (PDF):</span>
+                <div *ngIf="selectedApplication.uploadedFiles?.certificatePaths && selectedApplication.uploadedFiles.certificatePaths.length > 0" class="certificate-list">
+                  <a *ngFor="let certPath of selectedApplication.uploadedFiles.certificatePaths; let i = index"
+                     [href]="'http://localhost:5000/api/uploads/' + certPath"
+                     target="_blank" 
+                     class="document-link">
+                    📄 Certificate {{ i + 1 }}
+                  </a>
+                </div>
+                <span *ngIf="!selectedApplication.uploadedFiles?.certificatePaths || selectedApplication.uploadedFiles.certificatePaths.length === 0" class="no-document">Not uploaded</span>
+              </div>
+              <div class="document-item">
+                <span class="label">Technical Project Report (PDF):</span>
+                <a *ngIf="selectedApplication.uploadedFiles?.technicalReportPath" 
+                   [href]="'http://localhost:5000/api/uploads/' + selectedApplication.uploadedFiles.technicalReportPath"
+                   target="_blank" 
+                   class="document-link">
+                  📄 View Technical Report
+                </a>
+                <span *ngIf="!selectedApplication.uploadedFiles?.technicalReportPath" class="no-document">Not uploaded</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="details-section">
             <h3>Automated Grading & Division</h3>
             <div class="detail-row">
               <span class="label">Suggested Grade:</span>
@@ -183,6 +221,75 @@ import { AuthService } from '../services/auth.service';
                 <span class="badge-confidential">Confidential Response Received</span>
               </p>
               <p *ngIf="!sponsor.appraisalResponse" class="pending">Pending Response</p>
+            </div>
+          </div>
+
+          <!-- Payment Verification Section -->
+          <div class="payment-verification-section" *ngIf="selectedApplication.paymentProof">
+            <h3>Payment Proof Verification</h3>
+            <div class="payment-info-box">
+              <div class="payment-details">
+                <div class="detail-row">
+                  <span class="label">Application Fee:</span>
+                  <span>{{ selectedApplication.applicationFee | number: '1.2-2' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Proof Uploaded:</span>
+                  <span>{{ selectedApplication.paymentProof.uploadedAt | date: 'short' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Status:</span>
+                  <span class="payment-status-badge" 
+                        [ngClass]="'status-' + (selectedApplication.paymentProof.verificationStatus || 'pending')">
+                    {{ (selectedApplication.paymentProof.verificationStatus || 'pending') | uppercase }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="proof-file">
+                <a *ngIf="selectedApplication.paymentProof.filePath"
+                   [href]="'http://localhost:5000/api/uploads/' + selectedApplication.paymentProof.filePath"
+                   target="_blank"
+                   class="view-proof-link">
+                  📎 View Payment Proof
+                </a>
+              </div>
+
+              <div class="verification-controls" *ngIf="!selectedApplication.paymentProof.verificationStatus || selectedApplication.paymentProof.verificationStatus === 'pending'">
+                <div class="control-group">
+                  <label for="rejectionReason">Rejection Reason (if applicable):</label>
+                  <textarea
+                    id="rejectionReason"
+                    [(ngModel)]="paymentRejectionReason"
+                    placeholder="Enter reason for rejection..."
+                    class="form-input notes"
+                    rows="3"
+                  ></textarea>
+                </div>
+                <div class="button-group">
+                  <button (click)="verifyPayment(selectedApplication._id, true)" class="btn-approve">
+                    ✓ Approve Payment
+                  </button>
+                  <button (click)="verifyPayment(selectedApplication._id, false)" class="btn-reject">
+                    ✗ Reject Payment
+                  </button>
+                </div>
+              </div>
+
+              <div class="verification-confirmed" *ngIf="selectedApplication.paymentProof.verificationStatus && selectedApplication.paymentProof.verificationStatus !== 'pending'">
+                <p class="verified-text">
+                  <span *ngIf="selectedApplication.paymentProof.verificationStatus === 'verified'">
+                    ✓ Payment verified on {{ selectedApplication.paymentProof.verifiedAt | date: 'short' }}
+                  </span>
+                  <span *ngIf="selectedApplication.paymentProof.verificationStatus === 'rejected'">
+                    ✗ Payment rejected on {{ selectedApplication.paymentProof.verifiedAt | date: 'short' }}
+                    <br *ngIf="selectedApplication.paymentProof.rejectionReason" />
+                    <span *ngIf="selectedApplication.paymentProof.rejectionReason" class="rejection-reason">
+                      Reason: {{ selectedApplication.paymentProof.rejectionReason }}
+                    </span>
+                  </span>
+                </p>
+              </div>
             </div>
           </div>
 
@@ -591,6 +698,64 @@ import { AuthService } from '../services/auth.service';
       }
     }
 
+    .documents-section {
+      margin: 15px 0;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-left: 4px solid #B99532;
+      border-radius: 4px;
+
+      .document-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding: 10px;
+        background-color: white;
+        border-radius: 4px;
+        border: 1px solid #e0e0e0;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        .label {
+          font-weight: 600;
+          color: #004A59;
+          flex: 1;
+        }
+      }
+
+      .certificate-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .document-link {
+        background-color: #004A59;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        display: inline-block;
+
+        &:hover {
+          background-color: #B99532;
+          text-decoration: none;
+        }
+      }
+
+      .no-document {
+        color: #999;
+        font-style: italic;
+        font-size: 13px;
+      }
+    }
+
     .action-section {
       border: 2.5px solid #004A59;
       padding: 15px;
@@ -646,6 +811,194 @@ import { AuthService } from '../services/auth.service';
       color: #388e3c;
       border: 1px solid #388e3c;
     }
+
+    /* Payment Verification Section */
+    .payment-verification-section {
+      border: 2.5px solid #B99532;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      background-color: #fffaf0;
+
+      h3 {
+        color: #004A59;
+        margin: 0 0 15px 0;
+      }
+    }
+
+    .payment-info-box {
+      background-color: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 15px;
+    }
+
+    .payment-details {
+      margin-bottom: 15px;
+
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+
+        &:last-child {
+          border-bottom: none;
+        }
+
+        .label {
+          font-weight: 600;
+          color: #004A59;
+        }
+      }
+    }
+
+    .payment-status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+
+      &.status-pending {
+        background-color: #fff3e0;
+        color: #e65100;
+      }
+
+      &.status-verified {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      &.status-rejected {
+        background-color: #ffebee;
+        color: #c62828;
+      }
+    }
+
+    .proof-file {
+      margin-bottom: 15px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+
+      .view-proof-link {
+        background-color: #004A59;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        display: inline-block;
+
+        &:hover {
+          background-color: #B99532;
+          text-decoration: none;
+        }
+      }
+    }
+
+    .verification-controls {
+      border-top: 1px solid #e0e0e0;
+      padding-top: 15px;
+
+      .control-group {
+        margin-bottom: 15px;
+
+        label {
+          display: block;
+          font-weight: 600;
+          color: #004A59;
+          margin-bottom: 8px;
+        }
+
+        .form-input {
+          width: 100%;
+          padding: 10px;
+          border: 2.5px solid #004A59;
+          border-radius: 4px;
+          font-size: 13px;
+
+          &:focus {
+            outline: none;
+            border-color: #B99532;
+          }
+
+          &.notes {
+            resize: vertical;
+            min-height: 60px;
+          }
+        }
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+      }
+    }
+
+    .btn-approve {
+      background-color: #4caf50;
+      color: white;
+      border: 2.5px solid #4caf50;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      flex: 1;
+
+      &:hover {
+        background-color: darken(#4caf50, 10%);
+      }
+    }
+
+    .btn-reject {
+      background-color: #f44336;
+      color: white;
+      border: 2.5px solid #f44336;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      flex: 1;
+
+      &:hover {
+        background-color: darken(#f44336, 10%);
+      }
+    }
+
+    .verification-confirmed {
+      border-top: 1px solid #e0e0e0;
+      padding-top: 15px;
+
+      .verified-text {
+        margin: 0;
+        font-weight: 600;
+        padding: 10px;
+        border-radius: 4px;
+
+        &.verified-text {
+          color: #2e7d32;
+          background-color: #e8f5e9;
+          border: 1px solid #4caf50;
+        }
+      }
+
+      .rejection-reason {
+        display: block;
+        color: #c62828;
+        font-size: 13px;
+        font-weight: normal;
+        margin-top: 8px;
+        padding: 8px;
+        background-color: #ffebee;
+        border-radius: 4px;
+      }
+    }
   `]
 })
 export class AdminDashboardComponent implements OnInit {
@@ -657,6 +1010,7 @@ export class AdminDashboardComponent implements OnInit {
   statusFilter = '';
   updateSuccess = false;
   updateError = '';
+  paymentRejectionReason = '';
 
   constructor(
     private applicationService: ApplicationService,
@@ -774,6 +1128,43 @@ export class AdminDashboardComponent implements OnInit {
       },
       error: (error) => {
         this.updateError = error.error?.reason || error.error?.message || 'Failed to update status';
+      },
+    });
+  }
+
+  verifyPayment(applicationId: string, approved: boolean): void {
+    const rejectionReason = approved ? null : this.paymentRejectionReason;
+
+    if (!approved && !this.paymentRejectionReason.trim()) {
+      this.updateError = 'Please provide a rejection reason';
+      return;
+    }
+
+    this.applicationService.verifyPayment(applicationId, approved).subscribe({
+      next: (response: any) => {
+        // Update local application payment status
+        const appIndex = this.applications.findIndex((app) => app._id === applicationId);
+        if (appIndex !== -1 && this.applications[appIndex].paymentProof) {
+          this.applications[appIndex].paymentProof.verificationStatus = approved ? 'verified' : 'rejected';
+          this.applications[appIndex].paymentProof.verifiedAt = new Date();
+          if (!approved) {
+            this.applications[appIndex].paymentProof.rejectionReason = this.paymentRejectionReason;
+          }
+          
+          // Update selected application
+          if (this.selectedApplication && this.selectedApplication._id === applicationId) {
+            this.selectedApplication = { ...this.applications[appIndex] };
+            this.paymentRejectionReason = '';
+          }
+          
+          this.filteredApplications = [...this.applications];
+        }
+
+        this.updateSuccess = true;
+        this.updateError = '';
+      },
+      error: (error: any) => {
+        this.updateError = error.error?.message || 'Failed to verify payment';
       },
     });
   }

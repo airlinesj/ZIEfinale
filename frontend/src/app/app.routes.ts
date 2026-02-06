@@ -6,6 +6,7 @@ import { ApplicantDashboardComponent } from './pages/applicant-dashboard.compone
 import { FormM1Component } from './pages/form-m1.component';
 import { SponsorReviewComponent } from './pages/sponsor-review.component';
 import { AdminDashboardComponent } from './pages/admin-dashboard.component';
+import { PaymentComponent } from './pages/payment.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent, pathMatch: 'full' },
@@ -13,6 +14,7 @@ export const routes: Routes = [
   { path: 'register', component: RegisterComponent },
   { path: 'dashboard', component: ApplicantDashboardComponent },
   { path: 'form-m1', component: FormM1Component },
+  { path: 'payment', component: PaymentComponent },
   { path: 'sponsor-review/:token', component: SponsorReviewComponent },
   { path: 'admin-dashboard', component: AdminDashboardComponent },
   { path: '**', redirectTo: '/' },

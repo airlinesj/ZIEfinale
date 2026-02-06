@@ -3,7 +3,7 @@ import { Application } from '../models/Application';
 import { MembershipGrade } from '../models/MembershipGrade';
 import { AuthRequest } from '../middleware/auth';
 import { calculateApplicationFee } from '../middleware/feeCalculation';
-import { sendSponsorAppraisalEmail, sendApplicationConfirmationEmail } from '../services/emailService';
+import { sendSponsorAppraisalEmail, sendApplicationConfirmationEmail, sendAdminNotificationEmail } from '../services/emailService';
 import { validationResult } from 'express-validator';
 import crypto from 'crypto';
 import GradingService from '../services/GradingService';
@@ -13,8 +13,19 @@ import { deleteUploadedFile } from '../middleware/fileUpload';
 
 export const createApplication = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('=== Creating Application ===');
+    console.log('User ID:', req.userId);
+    console.log('Request Files:', (req.files as any)?.nationalIdCopy ? 'Yes' : 'No');
+    
+    // Verify user is authenticated
+    if (!req.userId) {
+      console.error('User ID is missing - authentication may have failed');
+      return res.status(401).json({ message: 'User authentication required. Please log in again.' });
+    }
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -29,6 +40,7 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
     // Parse FormData fields (they come as strings when sent via FormData)
     if (req.body.personalParticulars && typeof req.body.personalParticulars === 'string') {
       // FormData payload - fields are stringified JSON
+      console.log('Parsing FormData payload');
       personalParticulars = JSON.parse(req.body.personalParticulars);
       education = req.body.education ? JSON.parse(req.body.education) : [];
       experience = req.body.experience ? JSON.parse(req.body.experience) : [];
@@ -37,6 +49,7 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
       sponsors = req.body.sponsors ? JSON.parse(req.body.sponsors) : [];
     } else {
       // Regular JSON payload
+      console.log('Parsing JSON payload');
       personalParticulars = req.body.personalParticulars;
       education = req.body.education;
       experience = req.body.experience;
@@ -44,6 +57,8 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
       chosenSpecialistDivision = req.body.chosenSpecialistDivision;
       sponsors = req.body.sponsors;
     }
+
+    console.log('Parsed Data:', { personalParticulars, chosenGrade, sponsorsCount: sponsors?.length });
 
     // Get membership grade to verify requirements
     const grade = await MembershipGrade.findOne({ gradeName: chosenGrade });
@@ -57,8 +72,10 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
 
     // Create sponsors with tokens
     const processedSponsors = sponsors.map((sponsor: any) => ({
-      ...sponsor,
-      token: crypto.randomBytes(32).toString('hex'),
+      sponsorName: sponsor.name || sponsor.sponsorName,
+      sponsorEmail: sponsor.email || sponsor.sponsorEmail,
+      appraisalToken: crypto.randomBytes(32).toString('hex'),
+      isConfidential: true,
     }));
 
     // Create application
@@ -75,6 +92,7 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
       uploadedFiles: {
         nationalIdPath: (req.files as any)?.nationalIdCopy?.[0]?.filename || '',
         certificatePaths: (req.files as any)?.certificateFiles?.map((f: any) => f.filename) || [],
+        technicalReportPath: (req.files as any)?.technicalReport?.[0]?.filename || '',
       },
       userSummary: `Ready for Review: ${personalParticulars.firstName} ${personalParticulars.lastName} applied for ${chosenGrade}`,
     });
@@ -96,14 +114,33 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
 
     // Send appraisal emails to sponsors
     for (const sponsor of processedSponsors) {
-      await sendSponsorAppraisalEmail({
-        applicantName: `${personalParticulars.firstName} ${personalParticulars.lastName}`,
-        applicantEmail: personalParticulars.email,
-        sponsorName: sponsor.name,
-        sponsorEmail: sponsor.email,
-        applicationId: application._id.toString(),
-        sponsorToken: sponsor.token,
-      });
+      try {
+        await sendSponsorAppraisalEmail({
+          applicantName: `${personalParticulars.firstName} ${personalParticulars.lastName}`,
+          applicantEmail: personalParticulars.email,
+          sponsorName: sponsor.sponsorName,
+          sponsorEmail: sponsor.sponsorEmail,
+          applicationId: application._id.toString(),
+          sponsorToken: sponsor.appraisalToken,
+        });
+      } catch (error) {
+        console.error(`Error sending sponsor email to ${sponsor.email}:`, error);
+        // Don't fail the submission if sponsor email fails
+      }
+    }
+
+    // Send admin notification email with attached PDFs
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@zie.org.zw';
+    try {
+      await sendAdminNotificationEmail(
+        adminEmail,
+        `${personalParticulars.firstName} ${personalParticulars.lastName}`,
+        application._id.toString(),
+        application.uploadedFiles
+      );
+    } catch (error) {
+      console.error('Error sending admin notification:', error);
+      // Don't fail the submission if admin email fails
     }
 
     // Update status to Submitted
@@ -118,8 +155,11 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
         applicationFee,
       },
     });
-  } catch (error) {
-    console.error('Error creating application:', error);
+  } catch (error: any) {
+    console.error('=== Error creating application ===');
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    console.error('Full error:', error);
     
     // Clean up uploaded files if application creation fails
     if ((req.files as any)?.nationalIdCopy?.[0]?.filename) {
@@ -130,8 +170,17 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
         deleteUploadedFile(file.filename);
       });
     }
+    if ((req.files as any)?.technicalReport?.[0]?.filename) {
+      deleteUploadedFile((req.files as any).technicalReport[0].filename);
+    }
     
-    res.status(500).json({ message: 'Server error', error });
+    // Return error response with safe, serializable data
+    const errorResponse = {
+      message: error?.message || 'Failed to create application',
+      error: error?.message || 'Unknown error',
+    };
+    
+    res.status(500).json(errorResponse);
   }
 };
 
@@ -330,6 +379,106 @@ export const getApplicationPreview = async (req: AuthRequest, res: Response) => 
       },
       adminChecklist: application.adminChecklist,
       adminNotes: application.adminNotes,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+/**
+ * Upload payment proof for an application
+ */
+export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const application = await Application.findById(id);
+    
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Check if user owns the application
+    if (application.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+
+    // Get the uploaded file
+    const paymentProofFile = (req.files as any)?.nationalIdCopy?.[0];
+    
+    if (!paymentProofFile) {
+      return res.status(400).json({ message: 'No payment proof file provided' });
+    }
+
+    // Update payment proof in application
+    application.paymentProof = {
+      filePath: paymentProofFile.filename,
+      uploadedAt: new Date(),
+      verificationStatus: 'pending',
+    };
+
+    await application.save();
+
+    res.json({
+      message: 'Payment proof uploaded successfully',
+      paymentProof: {
+        filePath: paymentProofFile.filename,
+        uploadedAt: application.paymentProof.uploadedAt,
+        verificationStatus: 'pending',
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+/**
+ * Verify payment proof (admin only)
+ */
+export const verifyPayment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { verified, rejectionReason } = req.body;
+
+    const application = await Application.findById(id);
+    
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    if (!application.paymentProof) {
+      return res.status(400).json({ message: 'No payment proof found for this application' });
+    }
+
+    // Update payment verification status
+    application.paymentProof.verificationStatus = verified ? 'verified' : 'rejected';
+    application.paymentProof.verifiedAt = new Date();
+    application.paymentProof.verifiedBy = req.userId;
+    
+    if (!verified && rejectionReason) {
+      application.paymentProof.rejectionReason = rejectionReason;
+    }
+
+    await application.save();
+
+    // Send email notification to applicant
+    if (verified) {
+      await sendApplicationConfirmationEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        `Your payment of $${application.applicationFee} has been verified. Your application will now proceed to review.`
+      );
+    } else {
+      await sendApplicationConfirmationEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        `Your payment proof was rejected. Reason: ${rejectionReason || 'Please contact admin for details.'} Please resubmit a valid payment proof.`
+      );
+    }
+
+    res.json({
+      message: verified ? 'Payment verified successfully' : 'Payment verification rejected',
+      paymentProof: application.paymentProof
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });

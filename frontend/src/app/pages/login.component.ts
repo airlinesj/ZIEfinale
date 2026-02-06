@@ -41,7 +41,7 @@ import { AuthService } from '../services/auth.service';
                 placeholder="Enter your email"
                 class="form-input"
               />
-              <div class="error-message" *ngIf="loginForm.get('email')?.errors">
+              <div class="error-message" *ngIf="loginForm.get('email')?.errors && (loginForm.get('email')?.touched || loginForm.get('email')?.dirty)">
                 Please enter a valid email
               </div>
             </div>
@@ -55,8 +55,8 @@ import { AuthService } from '../services/auth.service';
                 placeholder="Enter your password"
                 class="form-input"
               />
-              <div class="error-message" *ngIf="loginForm.get('password')?.errors">
-                Password is required
+              <div class="error-message" *ngIf="loginForm.get('password')?.errors && (loginForm.get('password')?.touched || loginForm.get('password')?.dirty)">
+                Please enter a valid password
               </div>
             </div>
 
@@ -218,7 +218,7 @@ export class LoginComponent implements OnInit {
     this.authService.login(this.loginForm.value).subscribe({
       next: (response) => {
         this.isLoading = false;
-        const redirectUrl = this.isApplicant ? '/form-m1' : '/admin-dashboard';
+        const redirectUrl = this.isApplicant ? '/dashboard' : '/admin-dashboard';
         this.router.navigate([redirectUrl]);
       },
       error: (error) => {

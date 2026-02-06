@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import path from 'path';
+import fs from 'fs';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -14,7 +16,7 @@ export interface SponsorAppraisalRequest {
   applicantName: string;
   applicantEmail: string;
   sponsorName: string;
-  sponsorEmail: string;
+  sponsorEmail: string; 
   applicationId: string;
   sponsorToken: string;
 }
@@ -44,7 +46,7 @@ export const sendSponsorAppraisalEmail = async (data: SponsorAppraisalRequest) =
     console.log(`Appraisal email sent to ${data.sponsorEmail}`);
   } catch (error) {
     console.error('Error sending sponsor appraisal email:', error);
-    throw error;
+    // Log error but don't throw - email is non-critical
   }
 };
 
@@ -72,15 +74,58 @@ export const sendApplicationConfirmationEmail = async (
     console.log(`Confirmation email sent to ${applicantEmail}`);
   } catch (error) {
     console.error('Error sending confirmation email:', error);
-    throw error;
+    // Log error but don't throw - email is non-critical
   }
 };
 
 export const sendAdminNotificationEmail = async (
   adminEmail: string,
   applicantName: string,
-  applicationId: string
+  applicationId: string,
+  filePaths?: { [key: string]: string | string[] }
 ) => {
+  // Build attachments from file paths
+  const attachments: any[] = [];
+  
+  if (filePaths) {
+    // National ID
+    if (filePaths.nationalIdPath && typeof filePaths.nationalIdPath === 'string' && filePaths.nationalIdPath.length > 0) {
+      const filePath = path.join(process.cwd(), 'uploads', filePaths.nationalIdPath);
+      if (fs.existsSync(filePath)) {
+        attachments.push({
+          filename: 'national-id.pdf',
+          path: filePath,
+        });
+      }
+    }
+    
+    // Certificates
+    if (filePaths.certificatePaths && Array.isArray(filePaths.certificatePaths)) {
+      filePaths.certificatePaths.forEach((file: string, index: number) => {
+        if (file && file.length > 0) {
+          const filePath = path.join(process.cwd(), 'uploads', file);
+          if (fs.existsSync(filePath)) {
+            attachments.push({
+              filename: `certificate-${index + 1}.pdf`,
+              path: filePath,
+            });
+          }
+        }
+      });
+    }
+    
+    // Technical Report
+    if (filePaths.technicalReportPath && typeof filePaths.technicalReportPath === 'string' && filePaths.technicalReportPath.length > 0) {
+      const filePath = path.join(process.cwd(), 'uploads', filePaths.technicalReportPath);
+      if (fs.existsSync(filePath)) {
+        attachments.push({
+          filename: 'technical-report.pdf',
+          path: filePath,
+        });
+      }
+    }
+  }
+
   const mailOptions = {
     from: process.env.SMTP_USER,
     to: adminEmail,
@@ -91,15 +136,17 @@ export const sendAdminNotificationEmail = async (
       <p><strong>Applicant:</strong> ${applicantName}</p>
       <p><strong>Application ID:</strong> ${applicationId}</p>
       <p>Please log in to the admin dashboard to review this application.</p>
+      <p>Attached documents are included for your review.</p>
       <p>Best regards,<br/>Zimbabwe Institution of Engineers</p>
     `,
+    attachments: attachments.length > 0 ? attachments : undefined,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Admin notification sent to ${adminEmail}`);
+    console.log(`Admin notification sent to ${adminEmail} with ${attachments.length} file(s)`);
   } catch (error) {
     console.error('Error sending admin notification:', error);
-    throw error;
+    // Log error but don't throw - email is non-critical
   }
 };

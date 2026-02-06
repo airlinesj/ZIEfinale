@@ -9,6 +9,8 @@ import {
   updateApplicationChecklist,
   getVerificationReport,
   getApplicationPreview,
+  uploadPaymentProof,
+  verifyPayment,
 } from '../controllers/applicationController';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
 import { multipleUploadPDF } from '../middleware/fileUpload';
@@ -33,6 +35,8 @@ router.get('/:id/preview', authMiddleware, adminMiddleware, getApplicationPrevie
 router.put('/:id/status', authMiddleware, adminMiddleware, updateApplicationStatus);
 router.put('/:id/checklist', authMiddleware, adminMiddleware, updateApplicationChecklist);
 router.get('/:id/verification-report', authMiddleware, adminMiddleware, getVerificationReport);
+router.post('/:id/payment-proof', authMiddleware, multipleUploadPDF, uploadPaymentProof);
+router.put('/:id/verify-payment', authMiddleware, adminMiddleware, verifyPayment);
 router.get('/admin/all', authMiddleware, adminMiddleware, getAllApplications);
 
 export default router;

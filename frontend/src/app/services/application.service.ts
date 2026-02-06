@@ -95,4 +95,20 @@ export class ApplicationService {
   getVerificationReport(id: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/${id}/verification-report`, { headers: this.getHeaders() });
   }
+
+  uploadPaymentProof(applicationId: string, formData: FormData): Observable<any> {
+    const token = localStorage.getItem('token');
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`,
+    });
+    return this.http.post(`${this.apiUrl}/${applicationId}/payment-proof`, formData, { headers });
+  }
+
+  verifyPayment(applicationId: string, verified: boolean): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${applicationId}/verify-payment`,
+      { verified },
+      { headers: this.getHeaders() }
+    );
+  }
 }

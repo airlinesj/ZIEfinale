@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { MatStepperModule } from '@angular/material/stepper';
@@ -8,6 +8,37 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+
+// Custom Validators
+class CustomValidators {
+  static phoneNumber(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) {
+      return null; // allow empty value to be validated by required validator
+    }
+    const phoneValue = String(control.value).replace(/\D/g, ''); // Remove all non-digits
+    if (phoneValue.length !== 10) {
+      return { invalidPhone: true };
+    }
+    return null;
+  }
+
+  static nationalId(control: AbstractControl): ValidationErrors | null {
+    if (!control.value) {
+      return null;
+    }
+    // Pattern: "63-2345678 D 48" (digits-digits space letter space digits)
+    const pattern = /^\d{2}-\d{7}\s[A-Z]\s\d{2}$/;
+    if (!pattern.test(String(control.value).toUpperCase())) {
+      return { invalidNationalId: true };
+    }
+    return null;
+  }
+}
 
 @Component({
   selector: 'app-form-m1',
@@ -21,6 +52,9 @@ import { MatSelectModule } from '@angular/material/select';
     MatInputModule,
     MatButtonModule,
     MatSelectModule,
+    MatDialogModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
   ],
   template: `
     <div class="form-container">
@@ -66,9 +100,13 @@ import { MatSelectModule } from '@angular/material/select';
                 <input
                   type="tel"
                   formControlName="phone"
-                  placeholder="Enter phone number"
+                  placeholder="Enter 10-digit phone number"
                   class="form-input"
                 />
+                <div class="error-message" *ngIf="personalParticularsForm.get('phone')?.errors && (personalParticularsForm.get('phone')?.touched || personalParticularsForm.get('phone')?.dirty)">
+                  <span *ngIf="personalParticularsForm.get('phone')?.errors?.['required']">Phone number is required</span>
+                  <span *ngIf="personalParticularsForm.get('phone')?.errors?.['invalidPhone']">Phone number must be exactly 10 digits</span>
+                </div>
               </div>
 
               <div class="form-group">
@@ -76,9 +114,13 @@ import { MatSelectModule } from '@angular/material/select';
                 <input
                   type="text"
                   formControlName="nationalId"
-                  placeholder="Enter national ID"
+                  placeholder="Format: 63-2345678 D 48"
                   class="form-input"
                 />
+                <div class="error-message" *ngIf="personalParticularsForm.get('nationalId')?.errors && (personalParticularsForm.get('nationalId')?.touched || personalParticularsForm.get('nationalId')?.dirty)">
+                  <span *ngIf="personalParticularsForm.get('nationalId')?.errors?.['required']">National ID is required</span>
+                  <span *ngIf="personalParticularsForm.get('nationalId')?.errors?.['invalidNationalId']">National ID must be in format: 63-2345678 D 48</span>
+                </div>
               </div>
 
               <div class="form-group">
@@ -253,9 +295,18 @@ import { MatSelectModule } from '@angular/material/select';
         </mat-step>
 
         <!-- Step 4: Membership Grade & Division -->
-        <mat-step [stepControl]="gradeForm" label="Membership Grade & Division">
+        <mat-step [stepControl]="gradeForm" label="Membership Grade & Division" (click)="calculateAutoGrade()">
           <form [formGroup]="gradeForm">
             <div class="step-content">
+              <!-- Auto-suggested grade notification -->
+              <div class="grade-suggestion" *ngIf="suggestedGrade && suggestedGrade !== gradeForm.get('chosenGrade')?.value">
+                <p class="suggestion-text">
+                  <strong>System Suggestion:</strong> Based on your education and experience, 
+                  we recommend <span class="suggested-grade">{{ suggestedGrade }}</span> grade.
+                  You can choose a different grade if you believe it better fits your qualifications.
+                </p>
+              </div>
+
               <div class="form-group">
                 <label>Membership Grade</label>
                 <select formControlName="chosenGrade" (change)="onGradeChange()" class="form-input">
@@ -277,7 +328,7 @@ import { MatSelectModule } from '@angular/material/select';
                   <li *ngIf="selectedGradeRequirements.requiresDiploma">Diploma or higher qualification required</li>
                   <li *ngIf="selectedGradeRequirements.requiresTechnicalReport">Technical Project Report required</li>
                   <li>Minimum {{ selectedGradeRequirements.minYearsExperience }} years experience</li>
-                  <li>Application Fee: {{ selectedGradeRequirements.baseFee }} USD</li>
+                  <li>Application Fee: {{ selectedGradeRequirements.baseFee }} USD (≈ {{ calculateZWLAmount(selectedGradeRequirements.baseFee) }} ZWL)</li>
                 </ul>
               </div>
 
@@ -300,27 +351,62 @@ import { MatSelectModule } from '@angular/material/select';
 
                 <div class="upload-group">
                   <label>National ID Copy (PDF)</label>
-                  <div class="upload-zone">
-                    <input type="file" accept=".pdf" (change)="onFileSelected($event, 'nationalIdCopy')" />
+                  <div class="upload-zone" (click)="triggerFileInput('nationalIdCopy')" (dragover)="onDragOver($event)" (drop)="onDrop($event, 'nationalIdCopy')">
+                    <input 
+                      id="nationalIdCopyInput"
+                      type="file" 
+                      accept=".pdf" 
+                      (change)="onFileSelected($event, 'nationalIdCopy')" 
+                    />
                     <p>Drag and drop or click to upload</p>
+                  </div>
+                  <div *ngIf="uploadedFileNames.nationalIdCopy" class="file-confirmation">
+                    <p class="success-text">✓ File selected: {{ uploadedFileNames.nationalIdCopy }}</p>
                   </div>
                 </div>
 
                 <div class="upload-group">
                   <label>Certified Certificates (PDF)</label>
-                  <div class="upload-zone">
-                    <input type="file" accept=".pdf" multiple (change)="onFileSelected($event, 'certificates')" />
+                  <div class="upload-zone" (click)="triggerFileInput('certificates')" (dragover)="onDragOver($event)" (drop)="onDrop($event, 'certificates')">
+                    <input 
+                      id="certificatesInput"
+                      type="file" 
+                      accept=".pdf" 
+                      multiple 
+                      (change)="onFileSelected($event, 'certificates')" 
+                    />
                     <p>Drag and drop or click to upload</p>
+                  </div>
+                  <div *ngIf="uploadedFileNames.certificates && uploadedFileNames.certificates.length > 0" class="file-confirmation">
+                    <p class="success-text">✓ {{ uploadedFileNames.certificates.length }} file(s) selected:</p>
+                    <ul class="file-list">
+                      <li *ngFor="let fileName of uploadedFileNames.certificates">{{ fileName }}</li>
+                    </ul>
                   </div>
                 </div>
 
                 <div class="upload-group" *ngIf="selectedGradeRequirements?.requiresTechnicalReport">
                   <label>Technical Project Report (PDF)</label>
-                  <div class="upload-zone">
-                    <input type="file" accept=".pdf" (change)="onFileSelected($event, 'technicalReport')" />
+                  <div class="upload-zone" (click)="triggerFileInput('technicalReport')" (dragover)="onDragOver($event)" (drop)="onDrop($event, 'technicalReport')">
+                    <input 
+                      id="technicalReportInput"
+                      type="file" 
+                      accept=".pdf" 
+                      (change)="onFileSelected($event, 'technicalReport')" 
+                    />
                     <p>Drag and drop or click to upload</p>
                   </div>
+                  <div *ngIf="uploadedFileNames.technicalReport" class="file-confirmation">
+                    <p class="success-text">✓ File selected: {{ uploadedFileNames.technicalReport }}</p>
+                  </div>
                 </div>
+              </div>
+
+              <div class="terms-confirmation">
+                <label>
+                  <input type="checkbox" formControlName="agreeTerms" />
+                  <span>I certify that the information provided is accurate and complete</span>
+                </label>
               </div>
             </div>
 
@@ -411,7 +497,7 @@ import { MatSelectModule } from '@angular/material/select';
               <h4>Membership Grade</h4>
               <p><strong>Grade:</strong> {{ gradeForm.get('chosenGrade')?.value }}</p>
               <p><strong>Specialist Division:</strong> {{ gradeForm.get('chosenSpecialistDivision')?.value }}</p>
-              <p><strong>Application Fee:</strong> {{ estimatedFee }} USD</p>
+              <p><strong>Application Fee:</strong> {{ getBaseFeeForGrade(gradeForm.get('chosenGrade')?.value) }} USD (≈ {{ estimatedFee }} ZWL)</p>
             </div>
 
             <div class="review-section">
@@ -423,18 +509,12 @@ import { MatSelectModule } from '@angular/material/select';
               </ul>
             </div>
 
-            <div class="review-section terms">
-              <form [formGroup]="gradeForm">
-                <label>
-                  <input type="checkbox" formControlName="agreeTerms" />
-                  <span>I certify that the information provided is accurate and complete</span>
-                </label>
-              </form>
-            </div>
-
             <div class="step-buttons">
               <button matStepperPrevious type="button" class="btn-secondary">Back</button>
-              <button (click)="submitApplication()" type="button" class="btn-primary" [disabled]="isSubmitting">
+              <button (click)="downloadFormAsPDF()" type="button" class="btn-secondary" title="Download a copy of your form with entered data">
+                📥 Download Form (PDF)
+              </button>
+              <button (click)="submitApplication()" type="button" class="btn-primary" [disabled]="isSubmitting || !gradeForm.get('agreeTerms')?.value">
                 {{ isSubmitting ? 'Submitting...' : 'Submit Application' }}
               </button>
             </div>
@@ -525,6 +605,41 @@ import { MatSelectModule } from '@angular/material/select';
       }
     }
 
+    .file-confirmation {
+      margin-top: 12px;
+      padding: 12px;
+      background-color: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      border-radius: 4px;
+
+      .success-text {
+        color: #2e7d32;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        font-size: 14px;
+      }
+
+      .file-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+
+        li {
+          color: #1b5e20;
+          padding: 4px 0 4px 20px;
+          position: relative;
+          font-size: 13px;
+
+          &:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+          }
+        }
+      }
+    }
+
     .grade-info {
       border: 2.5px solid #B99532;
       padding: 15px;
@@ -544,6 +659,27 @@ import { MatSelectModule } from '@angular/material/select';
 
         li {
           margin-bottom: 5px;
+        }
+      }
+    }
+
+    .grade-suggestion {
+      border: 2.5px solid #004A59;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      background-color: #f0f7ff;
+
+      .suggestion-text {
+        margin: 0;
+        color: #004A59;
+        font-size: 14px;
+        line-height: 1.5;
+
+        .suggested-grade {
+          font-weight: 700;
+          color: #004A59;
+          font-size: 16px;
         }
       }
     }
@@ -661,6 +797,7 @@ export class FormM1Component implements OnInit {
   successMessage = '';
   estimatedFee = 0;
   selectedGradeRequirements: any = null;
+  suggestedGrade: string = '';
   
   // File handling properties
   uploadedFiles: {
@@ -681,11 +818,235 @@ export class FormM1Component implements OnInit {
   constructor(
     private fb: FormBuilder,
     private applicationService: ApplicationService,
-    private router: Router
+    private router: Router,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
     this.initializeForms();
+    this.loadFormData();
+    
+    // Auto-save form data every 5 seconds
+    setInterval(() => {
+      this.saveFormData();
+    }, 5000);
+  }
+
+  /**
+   * Save form data to localStorage
+   */
+  saveFormData(): void {
+    if (this.personalParticularsForm && this.educationForm && this.experienceForm) {
+      const formData = {
+        personalParticulars: this.personalParticularsForm.value,
+        education: this.educationForm.value,
+        experience: this.experienceForm.value,
+        grade: this.gradeForm?.value,
+        sponsors: this.sponsorsForm?.value,
+      };
+      localStorage.setItem('applicationFormData', JSON.stringify(formData));
+      console.log('Form data saved to localStorage');
+    }
+  }
+
+  /**
+   * Load form data from localStorage
+   */
+  loadFormData(): void {
+    const savedData = localStorage.getItem('applicationFormData');
+    if (savedData) {
+      try {
+        const formData = JSON.parse(savedData);
+        if (formData.personalParticulars) {
+          this.personalParticularsForm.patchValue(formData.personalParticulars);
+        }
+        if (formData.education && formData.education.education) {
+          const educationArray = this.educationForm.get('education') as FormArray;
+          formData.education.education.forEach((edu: any, index: number) => {
+            if (index > 0) {
+              educationArray.push(this.createEducationGroup());
+            }
+            educationArray.at(index).patchValue(edu);
+          });
+        }
+        if (formData.experience && formData.experience.experience) {
+          const experienceArray = this.experienceForm.get('experience') as FormArray;
+          formData.experience.experience.forEach((exp: any, index: number) => {
+            if (index > 0) {
+              experienceArray.push(this.createExperienceGroup());
+            }
+            experienceArray.at(index).patchValue(exp);
+          });
+        }
+        if (formData.grade) {
+          this.gradeForm.patchValue(formData.grade);
+          this.onGradeChange();
+        }
+        if (formData.sponsors && formData.sponsors.sponsors) {
+          const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
+          formData.sponsors.sponsors.forEach((sponsor: any, index: number) => {
+            if (index < sponsorsArray.length) {
+              sponsorsArray.at(index).patchValue(sponsor);
+            }
+          });
+        }
+        console.log('Form data loaded from localStorage');
+      } catch (error) {
+        console.error('Error loading form data:', error);
+      }
+    }
+  }
+
+  /**
+   * Clear saved form data
+   */
+  clearSavedFormData(): void {
+    localStorage.removeItem('applicationFormData');
+    console.log('Saved form data cleared');
+  }
+
+  /**
+   * Download form as PDF with all entered data
+   */
+  async downloadFormAsPDF(): Promise<void> {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+      const margin = 15;
+      const lineHeight = 8;
+      const sectionGap = 10;
+
+      // Helper function to add text with word wrapping
+      const addWrappedText = (text: string, fontSize: number = 11, isBold: boolean = false) => {
+        doc.setFontSize(fontSize);
+        if (isBold) {
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setFont('helvetica', 'normal');
+        }
+        const splitText = doc.splitTextToSize(text, pageWidth - 2 * margin);
+        doc.text(splitText, margin, yPosition);
+        yPosition += splitText.length * lineHeight + 2;
+      };
+
+      // Helper function to check if we need a new page
+      const checkNewPage = () => {
+        if (yPosition > pageHeight - margin) {
+          doc.addPage();
+          yPosition = margin;
+        }
+      };
+
+      // Title
+      addWrappedText('ZIE MEMBERSHIP APPLICATION FORM - M1', 14, true);
+      yPosition += sectionGap;
+
+      // Personal Particulars Section
+      addWrappedText('PERSONAL PARTICULARS', 12, true);
+      const pp = this.personalParticularsForm.value;
+      addWrappedText(`First Name: ${pp.firstName}`);
+      addWrappedText(`Last Name: ${pp.lastName}`);
+      addWrappedText(`Email: ${pp.email}`);
+      addWrappedText(`Phone: ${pp.phone}`);
+      addWrappedText(`National ID: ${pp.nationalId}`);
+      addWrappedText(`Date of Birth: ${pp.dateOfBirth}`);
+      addWrappedText(`Nationality: ${pp.nationality}`);
+      if (pp.professionalNumber) {
+        addWrappedText(`Professional Number: ${pp.professionalNumber}`);
+      }
+      yPosition += sectionGap;
+      checkNewPage();
+
+      // Education Section
+      addWrappedText('EDUCATION', 12, true);
+      const educationData = this.educationForm.get('education')?.value || [];
+      educationData.forEach((edu: any, index: number) => {
+        addWrappedText(`Education ${index + 1}:`, 11, true);
+        addWrappedText(`  Institution: ${edu.institution}`);
+        addWrappedText(`  Qualification: ${edu.qualification}`);
+        addWrappedText(`  Year: ${edu.year}`);
+        if (edu.major) addWrappedText(`  Major: ${edu.major}`);
+      });
+      yPosition += sectionGap;
+      checkNewPage();
+
+      // Experience Section
+      addWrappedText('EXPERIENCE', 12, true);
+      const experienceData = this.experienceForm.get('experience')?.value || [];
+      experienceData.forEach((exp: any, index: number) => {
+        addWrappedText(`Experience ${index + 1}:`, 11, true);
+        addWrappedText(`  Company: ${exp.company}`);
+        addWrappedText(`  Position: ${exp.position}`);
+        addWrappedText(`  Start Year: ${exp.startYear}`);
+        addWrappedText(`  End Year: ${exp.endYear}`);
+        addWrappedText(`  Description: ${exp.description}`);
+      });
+      yPosition += sectionGap;
+      checkNewPage();
+
+      // Membership Grade Section
+      addWrappedText('MEMBERSHIP GRADE', 12, true);
+      const grade = this.gradeForm.value;
+      const baseFee = this.getBaseFeeForGrade(grade.chosenGrade);
+      addWrappedText(`Grade: ${grade.chosenGrade}`);
+      addWrappedText(`Specialist Division: ${grade.chosenSpecialistDivision}`);
+      addWrappedText(`Application Fee: ${baseFee} USD (≈ ${this.estimatedFee} ZWL)`);
+      yPosition += sectionGap;
+      checkNewPage();
+
+      // Sponsors Section
+      addWrappedText('SPONSORS', 12, true);
+      const sponsors = this.sponsorsForm.get('sponsors')?.value || [];
+      sponsors.forEach((sponsor: any, index: number) => {
+        addWrappedText(`Sponsor ${index + 1}:`, 11, true);
+        addWrappedText(`  Name: ${sponsor.name}`);
+        addWrappedText(`  Email: ${sponsor.email}`);
+      });
+      yPosition += sectionGap;
+      checkNewPage();
+
+      // Uploaded Files Section
+      addWrappedText('UPLOADED DOCUMENTS', 12, true);
+      if (this.uploadedFiles.nationalIdCopy) {
+        addWrappedText(`✓ National ID Copy: ${this.uploadedFiles.nationalIdCopy.name}`);
+      } else {
+        addWrappedText(`✗ National ID Copy: Not uploaded`);
+      }
+      
+      if (this.uploadedFiles.certificates && this.uploadedFiles.certificates.length > 0) {
+        addWrappedText(`✓ Certificates: ${this.uploadedFiles.certificates.length} file(s)`);
+        this.uploadedFiles.certificates.forEach((cert, index) => {
+          addWrappedText(`  ${index + 1}. ${cert.name}`);
+        });
+      } else {
+        addWrappedText(`✗ Certificates: Not uploaded`);
+      }
+
+      if (this.uploadedFiles.technicalReport) {
+        addWrappedText(`✓ Technical Report: ${this.uploadedFiles.technicalReport.name}`);
+      } else {
+        addWrappedText(`✗ Technical Report: Not uploaded`);
+      }
+
+      // Footer
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text(
+        `Generated on: ${new Date().toLocaleString()}`,
+        margin,
+        pageHeight - 10
+      );
+
+      // Save the PDF
+      const fileName = `ZIE_Application_${pp.firstName}_${pp.lastName}_${new Date().getTime()}.pdf`;
+      doc.save(fileName);
+      console.log('PDF downloaded successfully:', fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   }
 
   initializeForms(): void {
@@ -693,8 +1054,8 @@ export class FormM1Component implements OnInit {
       firstName: ['', Validators.required],
       lastName: ['', Validators.required],
       email: ['', [Validators.required, Validators.email]],
-      phone: ['', Validators.required],
-      nationalId: ['', Validators.required],
+      phone: ['', [Validators.required, CustomValidators.phoneNumber]],
+      nationalId: ['', [Validators.required, CustomValidators.nationalId]],
       dateOfBirth: ['', Validators.required],
       nationality: ['', Validators.required],
       professionalNumber: [''],
@@ -711,11 +1072,11 @@ export class FormM1Component implements OnInit {
     this.gradeForm = this.fb.group({
       chosenGrade: ['', Validators.required],
       chosenSpecialistDivision: ['', Validators.required],
+      agreeTerms: [false, Validators.requiredTrue],
     });
 
     this.sponsorsForm = this.fb.group({
       sponsors: this.fb.array([this.createSponsorGroup(), this.createSponsorGroup(), this.createSponsorGroup()]),
-      agreeTerms: [false, Validators.requiredTrue],
     });
   }
 
@@ -785,12 +1146,16 @@ export class FormM1Component implements OnInit {
 
   onGradeChange(): void {
     const grade = this.gradeForm.get('chosenGrade')?.value;
-    this.estimatedFee = this.getFeByGrade(grade);
+    const baseFeeUSD = this.getFeByGrade(grade);
+    // Calculate ZWL equivalent using the same exchange rate as backend (0.015)
+    const exchangeRate = 0.015;
+    this.estimatedFee = Math.round(baseFeeUSD / exchangeRate);
     this.selectedGradeRequirements = this.getGradeRequirements(grade);
   }
 
   /**
    * Calculate auto-grade based on education level and years of experience
+   * This is called when the user navigates to the Membership Grade step
    */
   calculateAutoGrade(): void {
     const educationArray = this.educationForm.get('education') as FormArray;
@@ -807,28 +1172,32 @@ export class FormM1Component implements OnInit {
     // Calculate years of experience
     const yearsOfExperience = this.calculateYearsOfExperience();
 
-    // Determine grade based on education and experience
-    let suggestedGrade = 'Student';
+    // Determine grade based on education and experience (ZIE/ECZ guidelines)
+    let grade = 'Student';
 
     if (highestQualification.includes('Honours') && yearsOfExperience >= 3) {
-      suggestedGrade = 'Member';
+      grade = 'Member';
     } else if (highestQualification.includes('Diploma') && yearsOfExperience >= 3) {
-      suggestedGrade = 'Technician';
+      grade = 'Technician';
     } else if (highestQualification.includes('Degree') && yearsOfExperience >= 5) {
-      suggestedGrade = 'Technologist';
+      grade = 'Technologist';
     } else if (yearsOfExperience >= 10) {
-      suggestedGrade = 'Fellow';
+      grade = 'Fellow';
     } else if (yearsOfExperience >= 2) {
-      suggestedGrade = 'Graduate Member';
+      grade = 'Graduate';
+    } else if (highestQualification.includes('Degree') || highestQualification.includes('Diploma')) {
+      grade = 'Graduate';
     }
 
-    // Auto-set the grade if not already set
+    // Store suggested grade and auto-select if not already set
+    this.suggestedGrade = grade;
+    
     if (!this.gradeForm.get('chosenGrade')?.value) {
-      this.gradeForm.patchValue({ chosenGrade: suggestedGrade });
+      this.gradeForm.patchValue({ chosenGrade: grade });
       this.onGradeChange();
     }
 
-    console.log(`Auto-calculated grade: ${suggestedGrade} (Education: ${highestQualification}, Experience: ${yearsOfExperience} years)`);
+    console.log(`Auto-calculated grade: ${grade} (Education: ${highestQualification}, Experience: ${yearsOfExperience} years)`);
   }
 
   /**
@@ -901,6 +1270,22 @@ export class FormM1Component implements OnInit {
     return requirements[grade];
   }
 
+  /**
+   * Get the base fee (in USD) for a given grade
+   */
+  getBaseFeeForGrade(grade: string): number {
+    return this.getFeByGrade(grade);
+  }
+
+  /**
+   * Calculate ZWL equivalent of USD amount using the default exchange rate
+   */
+  calculateZWLAmount(usdAmount: number): string {
+    const exchangeRate = 0.015; // 1 USD = ~66.67 ZWL (1/0.015)
+    const zwlAmount = Math.round(usdAmount / exchangeRate);
+    return zwlAmount.toLocaleString();
+  }
+
   onFileSelected(event: any, fieldName: string): void {
     const files = event.target.files;
     
@@ -940,9 +1325,73 @@ export class FormM1Component implements OnInit {
     this.errorMessage = '';
   }
 
+  /**
+   * Trigger the hidden file input when clicking the upload zone
+   */
+  triggerFileInput(fieldName: string): void {
+    let elementId = '';
+    if (fieldName === 'nationalIdCopy') {
+      elementId = 'nationalIdCopyInput';
+    } else if (fieldName === 'certificates') {
+      elementId = 'certificatesInput';
+    } else if (fieldName === 'technicalReport') {
+      elementId = 'technicalReportInput';
+    }
+    
+    if (elementId) {
+      const inputElement = document.getElementById(elementId) as HTMLInputElement;
+      if (inputElement) {
+        inputElement.click();
+      }
+    }
+  }
+
+  /**
+   * Handle drag over event for file upload
+   */
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  /**
+   * Handle drop event for file upload
+   */
+  onDrop(event: DragEvent, fieldName: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      // Create a synthetic event to reuse onFileSelected logic
+      const mockEvent = {
+        target: {
+          files: files,
+        },
+      };
+      this.onFileSelected(mockEvent, fieldName);
+    }
+  }
+
   submitApplication(): void {
     if (!this.personalParticularsForm.valid || !this.gradeForm.valid || !this.sponsorsForm.valid) {
       this.errorMessage = 'Please complete all required fields.';
+      return;
+    }
+
+    // Validate that required files are uploaded
+    if (!this.uploadedFiles.nationalIdCopy) {
+      this.errorMessage = 'National ID Copy (PDF) is required. Please upload it before submitting.';
+      return;
+    }
+
+    if (!this.uploadedFiles.certificates || this.uploadedFiles.certificates.length === 0) {
+      this.errorMessage = 'At least one Certificate (PDF) is required. Please upload it before submitting.';
+      return;
+    }
+
+    if (this.selectedGradeRequirements?.requiresTechnicalReport && !this.uploadedFiles.technicalReport) {
+      this.errorMessage = 'Technical Project Report (PDF) is required for your grade selection. Please upload it before submitting.';
       return;
     }
 
@@ -957,6 +1406,14 @@ export class FormM1Component implements OnInit {
       chosenSpecialistDivision: this.gradeForm.get('chosenSpecialistDivision')?.value,
       sponsors: this.sponsorsForm.get('sponsors')?.value,
     };
+
+    console.log('=== Submitting Application ===');
+    console.log('Application Data:', applicationData);
+    console.log('Files:', {
+      nationalIdCopy: this.uploadedFiles.nationalIdCopy?.name,
+      certificates: this.uploadedFiles.certificates?.map(c => c.name),
+      technicalReport: this.uploadedFiles.technicalReport?.name
+    });
 
     // Create FormData for file upload
     const formData = new FormData();
@@ -989,14 +1446,137 @@ export class FormM1Component implements OnInit {
         this.isSubmitting = false;
         this.successMessage =
           'Application submitted successfully! You will receive confirmation emails shortly.';
+        
+        // Clear saved form data on successful submission
+        this.clearSavedFormData();
+        
+        // Show dialog
+        this.dialog.open(SubmissionSuccessDialog, {
+          width: '400px',
+          disableClose: false,
+          data: { applicationId: response._id || response.id }
+        });
+        
         setTimeout(() => {
           this.router.navigate(['/dashboard']);
         }, 3000);
       },
       error: (error) => {
         this.isSubmitting = false;
-        this.errorMessage = error.error?.message || 'Failed to submit application. Please try again.';
+        // Extract error message with fallback
+        let errorMsg = 'Failed to submit application. Please try again.';
+        
+        if (error?.error?.message) {
+          errorMsg = error.error.message;
+        } else if (error?.error?.error) {
+          errorMsg = error.error.error;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        }
+        
+        console.error('=== Submission error details ===');
+        console.error('Full error:', error);
+        console.error('Error.error:', error?.error);
+        console.error('Error.error stringified:', JSON.stringify(error?.error, null, 2));
+        console.error('Error message extracted:', errorMsg);
+        this.errorMessage = errorMsg;
       },
     });
+  }
+}
+
+// Success Dialog Component
+import { Inject } from '@angular/core';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+
+@Component({
+  selector: 'app-submission-success-dialog',
+  template: `
+    <div class="dialog-content">
+      <div class="success-icon">✓</div>
+      <h2>Application Submitted Successfully!</h2>
+      <p class="message">
+        Your application has been submitted and is now under review.
+      </p>
+      <p class="submessage">
+        You will receive confirmation emails at your registered email address.
+      </p>
+      <p class="info-text">
+        <strong>Application ID:</strong> {{ data?.applicationId }}
+      </p>
+      <p class="next-steps">
+        Your sponsors will also receive appraisal requests via email.
+      </p>
+      <button mat-button (click)="onClose()" class="close-btn">Close</button>
+    </div>
+  `,
+  styles: [`
+    .dialog-content {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .success-icon {
+      font-size: 48px;
+      color: #4caf50;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    h2 {
+      color: #004A59;
+      margin-bottom: 15px;
+      font-size: 22px;
+    }
+
+    .message {
+      color: #333;
+      font-size: 16px;
+      margin: 10px 0;
+      line-height: 1.5;
+    }
+
+    .submessage {
+      color: #666;
+      font-size: 14px;
+      margin: 10px 0;
+    }
+
+    .info-text {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #004A59;
+      margin: 15px 0;
+      word-break: break-all;
+    }
+
+    .next-steps {
+      color: #666;
+      font-size: 13px;
+      margin: 10px 0;
+      font-style: italic;
+    }
+
+    .close-btn {
+      background-color: #004A59;
+      color: white;
+      padding: 10px 30px;
+      margin-top: 20px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .close-btn:hover {
+      background-color: darken(#004A59, 10%);
+    }
+  `]
+})
+export class SubmissionSuccessDialog {
+  constructor(@Inject(MAT_DIALOG_DATA) public data: any) {}
+
+  onClose(): void {
+    window.location.href = '/dashboard';
   }
 }

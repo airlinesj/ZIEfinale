@@ -42,11 +42,12 @@ export const uploadPDF = multer({
 
 /**
  * Middleware for handling multiple PDF uploads
- * Accepts: nationalIdCopy, certificateFiles
+ * Accepts: nationalIdCopy, certificateFiles, technicalReport
  */
 export const multipleUploadPDF = uploadPDF.fields([
   { name: 'nationalIdCopy', maxCount: 1 },
   { name: 'certificateFiles', maxCount: 5 }, // Allow up to 5 certificate files
+  { name: 'technicalReport', maxCount: 1 },
 ]);
 
 /**

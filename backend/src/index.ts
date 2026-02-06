@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import multer from 'multer';
 import authRoutes from './routes/authRoutes';
 import applicationRoutes from './routes/applicationRoutes';
 import sponsorRoutes from './routes/sponsorRoutes';
@@ -53,9 +54,28 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'Server is running' });
 });
 
+// Multer error handler
+app.use((err: any, req: Request, res: Response, next: any) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    console.error('File size limit exceeded:', err);
+    return res.status(400).json({ message: 'File size exceeds 5MB limit' });
+  }
+  if (err.code === 'LIMIT_PART_COUNT') {
+    console.error('Too many file parts:', err);
+    return res.status(400).json({ message: 'Too many file parts' });
+  }
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    return res.status(400).json({ message: 'File upload error: ' + err.message });
+  }
+  // Pass to general error handler
+  next(err);
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response) => {
-  console.error(err);
+  console.error('=== Server Error ===');
+  console.error('Error:', err);
   res.status(500).json({ message: 'Internal server error', error: err.message });
 });
 

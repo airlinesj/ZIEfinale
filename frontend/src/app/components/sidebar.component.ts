@@ -1,6 +1,6 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 @Component({
@@ -20,6 +20,11 @@ import { AuthService } from '../services/auth.service';
           <a routerLink="/form-m1" class="nav-item" routerActiveOptions="{ exact: true }" routerLinkActive="active">
             <span class="icon material-symbols-outlined">assignment</span>
             <span class="label" *ngIf="!isCollapsed">ZIE APPLICATION FORM</span>
+          </a>
+
+          <a routerLink="/payment" class="nav-item" routerActiveOptions="{ exact: true }" routerLinkActive="active">
+            <span class="icon material-symbols-outlined">payment</span>
+            <span class="label" *ngIf="!isCollapsed">PAYMENT</span>
           </a>
         </nav>
 
@@ -232,7 +237,7 @@ export class SidebarComponent implements OnInit {
 
   @Output() sidebarCollapseChange = new EventEmitter<boolean>();
 
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, private router: Router) {}
 
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(user => {
@@ -248,5 +253,6 @@ export class SidebarComponent implements OnInit {
 
   logout(): void {
     this.authService.logout();
+    this.router.navigate(['/login']);
   }
 }

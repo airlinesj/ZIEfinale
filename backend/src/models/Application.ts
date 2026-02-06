@@ -74,6 +74,15 @@ export interface IApplication extends Document {
   uploadedFiles: {
     nationalIdPath?: string;         // Path to uploaded National ID PDF
     certificatePaths: string[];      // Paths to uploaded Certificate PDFs
+    technicalReportPath?: string;    // Path to uploaded Technical Report PDF
+  };
+  paymentProof?: {
+    filePath?: string;               // Path to uploaded payment proof file
+    uploadedAt?: Date;               // When the proof was uploaded
+    verificationStatus?: 'pending' | 'verified' | 'rejected';  // Admin verification status
+    verifiedAt?: Date;               // When admin verified the payment
+    verifiedBy?: string;             // Admin user who verified
+    rejectionReason?: string;        // Reason for rejection if applicable
   };
   sponsors: SponsorAppraisal[];
   adminChecklist: AdminChecklist;
@@ -157,6 +166,19 @@ const applicationSchema = new Schema<IApplication>(
     uploadedFiles: {
       nationalIdPath: { type: String },
       certificatePaths: { type: [String], default: [] },
+      technicalReportPath: { type: String },
+    },
+    paymentProof: {
+      filePath: { type: String },
+      uploadedAt: { type: Date },
+      verificationStatus: { 
+        type: String, 
+        enum: ['pending', 'verified', 'rejected'],
+        default: 'pending'
+      },
+      verifiedAt: { type: Date },
+      verifiedBy: { type: String },
+      rejectionReason: { type: String },
     },
     sponsors: [
       {
