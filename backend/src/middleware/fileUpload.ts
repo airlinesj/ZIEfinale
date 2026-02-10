@@ -51,6 +51,11 @@ export const multipleUploadPDF = uploadPDF.fields([
 ]);
 
 /**
+ * Middleware for handling single payment proof upload
+ */
+export const uploadPaymentProofPDF = uploadPDF.single('paymentProof');
+
+/**
  * Get file download URL from stored path
  */
 export const getFileUrl = (filename: string): string => {

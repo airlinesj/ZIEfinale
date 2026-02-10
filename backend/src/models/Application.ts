@@ -29,6 +29,31 @@ export interface SponsorAppraisal {
   isConfidential: boolean;
 }
 
+export interface AdminApproval {
+  adminId: mongoose.Types.ObjectId;
+  adminEmail: string;
+  adminName: string;
+  approvedAt: Date;
+}
+
+export interface ManualGrade {
+  grade: 'Student' | 'Graduate' | 'Technician' | 'Technologist' | 'Member' | 'Fellow';
+  division: string;
+  setBy: mongoose.Types.ObjectId;
+  setByEmail: string;
+  setByName: string;
+  setAt: Date;
+  notes?: string;
+}
+
+export interface InterviewNotification {
+  sentAt: Date;
+  sentBy: mongoose.Types.ObjectId;
+  sentByEmail: string;
+  sentByName: string;
+  message?: string;
+}
+
 export interface IEducation {
   institution: string;
   qualification: string;
@@ -64,7 +89,9 @@ export interface IApplication extends Document {
   chosenSpecialistDivision: string;
   suggestedDivision: string;
   applicationFee: number;
-  status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Pending' | 'Interview Required' | 'Rejected' | 'Approved with Conditions';
+  status: 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Pending' | 'Interview Required' | 'Rejected' | 'Approved with Conditions' | 'Passed';
+  registrationNumber?: string;      // ZIE Professional Registration Number (YYYY+4digit)
+  interviewPassedDate?: Date;       // Date when interview was passed
   documents: {
     nationalIdCopy: string;
     certificates: string[];
@@ -84,6 +111,11 @@ export interface IApplication extends Document {
     verifiedBy?: string;             // Admin user who verified
     rejectionReason?: string;        // Reason for rejection if applicable
   };
+  paymentStatus: 'pending' | 'completed' | 'failed';  // Payment status
+  paymentDate?: Date;               // When payment was completed
+  manualGrade?: ManualGrade;         // Admin manual grading
+  adminApprovals: AdminApproval[];   // Array of approvals from different admins (need 3)
+  interviewNotification?: InterviewNotification;  // Interview notification from admin
   sponsors: SponsorAppraisal[];
   adminChecklist: AdminChecklist;
   adminNotes: string;
@@ -154,9 +186,15 @@ const applicationSchema = new Schema<IApplication>(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Pending', 'Interview Required', 'Rejected', 'Approved with Conditions'],
+      enum: ['Draft', 'Submitted', 'Under Review', 'Approved', 'Pending', 'Interview Required', 'Rejected', 'Approved with Conditions', 'Passed'],
       default: 'Draft',
     },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'completed', 'failed'],
+      default: 'pending',
+    },
+    paymentDate: { type: Date },
     documents: {
       nationalIdCopy: String,
       certificates: [String],
@@ -179,6 +217,43 @@ const applicationSchema = new Schema<IApplication>(
       verifiedAt: { type: Date },
       verifiedBy: { type: String },
       rejectionReason: { type: String },
+    },
+    manualGrade: {
+      grade: {
+        type: String,
+        enum: ['Student', 'Graduate', 'Technician', 'Technologist', 'Member', 'Fellow'],
+      },
+      division: String,
+      setBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      setByEmail: String,
+      setByName: String,
+      setAt: Date,
+      notes: String,
+    },
+    adminApprovals: [
+      {
+        adminId: {
+          type: Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        adminEmail: String,
+        adminName: String,
+        approvedAt: { type: Date, default: Date.now },
+      },
+    ],
+    interviewNotification: {
+      sentAt: Date,
+      sentBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      sentByEmail: String,
+      sentByName: String,
+      message: String,
     },
     sponsors: [
       {
@@ -211,6 +286,8 @@ const applicationSchema = new Schema<IApplication>(
     },
     adminNotes: { type: String, default: '' },
     confidentialFlag: { type: Boolean, default: false },
+    registrationNumber: { type: String, sparse: true, unique: true },  // Unique registration number
+    interviewPassedDate: { type: Date },  // Date when interview was passed
   },
   { timestamps: true }
 );

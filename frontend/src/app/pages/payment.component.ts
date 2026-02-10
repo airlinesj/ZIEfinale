@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 
 @Component({
@@ -19,13 +20,14 @@ export class PaymentComponent implements OnInit {
   successMessage = '';
   errorMessage = '';
   mobileTransactionId = '';
+  applicationId: string = '';
+  paymentCompleted = false;
 
   // Payment proof upload properties
   selectedPaymentFile: File | null = null;
   isDragOver = false;
   isUploading = false;
   paymentVerificationStatus: any = null;
-  applicationId: string = '';
 
   cardDetails = {
     holderName: '',
@@ -34,7 +36,10 @@ export class PaymentComponent implements OnInit {
     cvv: '',
   };
 
-  constructor(private applicationService: ApplicationService) {}
+  constructor(
+    private applicationService: ApplicationService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.loadApplicationData();
@@ -49,6 +54,12 @@ export class PaymentComponent implements OnInit {
           this.membershipGrade = latestApp.chosenGrade;
           this.applicationFee = latestApp.applicationFee;
           this.applicationId = latestApp._id;
+          
+          // Check if payment already completed
+          if (latestApp.paymentStatus === 'completed') {
+            this.paymentCompleted = true;
+            this.successMessage = 'Payment already completed! Your application is now under review.';
+          }
           
           // Load payment verification status
           if (latestApp.paymentProof?.verificationStatus) {
@@ -76,18 +87,50 @@ export class PaymentComponent implements OnInit {
     this.isProcessing = true;
     this.errorMessage = '';
 
-    console.log('Processing card payment:', this.cardDetails);
+    console.log('Processing dummy card payment:', this.cardDetails);
     
-    // TODO: Connect to actual payment gateway API
-    setTimeout(() => {
-      this.isProcessing = false;
-      this.successMessage = `Payment of $${this.applicationFee.toFixed(2)} processed successfully! Receipt sent to your email.`;
-      this.clearCardDetails();
-    }, 2000);
+    // Call backend to process dummy payment
+    this.applicationService.processPayment(this.applicationId, { paymentMethod: 'card' }).subscribe({
+      next: (response: any) => {
+        this.isProcessing = false;
+        this.paymentCompleted = true;
+        this.successMessage = `Payment of $${this.applicationFee.toFixed(2)} processed successfully! You will be redirected shortly.`;
+        this.clearCardDetails();
+        
+        // Redirect to dashboard after 2 seconds
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 2000);
+      },
+      error: (error: any) => {
+        this.isProcessing = false;
+        this.errorMessage = error.error?.message || 'Payment processing failed. Please try again.';
+        console.error('Payment error:', error);
+      }
+    });
   }
 
   confirmBankTransfer(): void {
-    this.successMessage = `Bank transfer confirmation recorded. Payment of $${this.applicationFee.toFixed(2)} will be verified within 2-3 business days.`;
+    this.isProcessing = true;
+    this.errorMessage = '';
+
+    // Call backend to process dummy payment
+    this.applicationService.processPayment(this.applicationId, { paymentMethod: 'bank' }).subscribe({
+      next: (response: any) => {
+        this.isProcessing = false;
+        this.paymentCompleted = true;
+        this.successMessage = `Bank transfer of $${this.applicationFee.toFixed(2)} recorded successfully! Your application is now under review.`;
+        
+        // Redirect to dashboard after 2 seconds
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 2000);
+      },
+      error: (error: any) => {
+        this.isProcessing = false;
+        this.errorMessage = error.error?.message || 'Payment processing failed. Please try again.';
+      }
+    });
   }
 
   confirmMobilePayment(): void {
@@ -96,8 +139,27 @@ export class PaymentComponent implements OnInit {
       return;
     }
 
-    this.successMessage = `Mobile payment confirmed with ID: ${this.mobileTransactionId}. Payment of $${this.applicationFee.toFixed(2)} will be verified shortly.`;
-    this.mobileTransactionId = '';
+    this.isProcessing = true;
+    this.errorMessage = '';
+
+    // Call backend to process dummy payment
+    this.applicationService.processPayment(this.applicationId, { paymentMethod: 'mobile', transactionId: this.mobileTransactionId }).subscribe({
+      next: (response: any) => {
+        this.isProcessing = false;
+        this.paymentCompleted = true;
+        this.successMessage = `Mobile payment confirmed with ID: ${this.mobileTransactionId}. Your application is now under review.`;
+        this.mobileTransactionId = '';
+        
+        // Redirect to dashboard after 2 seconds
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 2000);
+      },
+      error: (error: any) => {
+        this.isProcessing = false;
+        this.errorMessage = error.error?.message || 'Payment processing failed. Please try again.';
+      }
+    });
   }
 
   onDragOver(event: DragEvent): void {

@@ -12,10 +12,21 @@ export const register = async (req: AuthRequest, res: Response) => {
 
     const { email, password, role } = req.body;
 
-    // Validate admin email format
-    if (role === 'Admin' && !email.includes('@admin')) {
-      return res.status(400).json({ 
-        message: 'Admin accounts must use an email address containing @admin (e.g., admin@admin.com)' 
+    // Security: Validate role and email
+    let finalRole = 'Applicant'; // Default role
+    
+    if (role === 'Admin') {
+      // Admin registration only allowed with @admin email
+      if (!email.includes('@admin')) {
+        return res.status(400).json({ 
+          message: 'Admin accounts must use an email address containing @admin (e.g., admin@admin.com)' 
+        });
+      }
+      finalRole = 'Admin';
+    } else if (role && role !== 'Applicant') {
+      // Reject any other roles
+      return res.status(403).json({ 
+        message: 'Invalid account type. Only applicant and admin accounts are supported.' 
       });
     }
 
@@ -29,7 +40,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     const user = new User({
       email,
       password_hash: password,
-      role: role || 'Applicant',
+      role: finalRole,
     });
 
     await user.save();

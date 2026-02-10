@@ -183,6 +183,122 @@ import { AuthService } from '../services/auth.service';
       font-size: 12px;
       margin-top: 5px;
     }
+
+    @media (max-width: 768px) {
+      .login-container {
+        min-height: calc(100vh - 70px);
+        margin-top: 70px;
+        padding: 15px;
+      }
+
+      .login-card {
+        max-width: 100%;
+        padding: 25px;
+      }
+
+      .tabs {
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .tab-button {
+        padding: 10px;
+        font-size: 13px;
+      }
+
+      h2 {
+        font-size: 1.5rem;
+        margin-bottom: 18px;
+      }
+
+      .form-group {
+        margin-bottom: 13px;
+      }
+
+      label {
+        font-size: 13px;
+        margin-bottom: 5px;
+      }
+
+      .form-input {
+        padding: 10px;
+        font-size: 16px;
+        min-height: 44px;
+      }
+
+      .btn-primary {
+        padding: 11px;
+        margin-top: 18px;
+        font-size: 14px;
+      }
+
+      .signup-link {
+        font-size: 13px;
+        margin-top: 12px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-container {
+        min-height: calc(100vh - 60px);
+        margin-top: 60px;
+        padding: 10px;
+      }
+
+      .login-card {
+        max-width: 100%;
+        padding: 20px;
+        border-radius: 6px;
+      }
+
+      .tabs {
+        gap: 6px;
+        margin-bottom: 15px;
+      }
+
+      .tab-button {
+        padding: 8px 6px;
+        font-size: 12px;
+        border-radius: 3px;
+      }
+
+      h2 {
+        font-size: 1.3rem;
+        margin-bottom: 15px;
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+
+      label {
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+
+      .form-input {
+        padding: 10px;
+        font-size: 16px;
+        min-height: 44px;
+        margin-bottom: 0;
+      }
+
+      .btn-primary {
+        padding: 10px;
+        margin-top: 15px;
+        font-size: 13px;
+        width: 100%;
+      }
+
+      .signup-link {
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      .error-message {
+        font-size: 11px;
+      }
+    }
   `]
 })
 export class LoginComponent implements OnInit {

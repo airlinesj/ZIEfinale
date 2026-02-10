@@ -112,7 +112,7 @@ import { RouterModule } from '@angular/router';
       justify-content: center;
     }
 
-    .btn-login, .btn-register {
+    .btn-login, .btn-register, .btn-view-details {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -145,6 +145,17 @@ import { RouterModule } from '@angular/router';
 
     .btn-register:hover {
       background-color: #a58628;
+      border-color: #004A59;
+    }
+
+    .btn-view-details {
+      background-color: #FFFFFF;
+      color: #004A59;
+      border-color: #B99532;
+    }
+
+    .btn-view-details:hover {
+      background-color: #f0f0f0;
       border-color: #004A59;
     }
 

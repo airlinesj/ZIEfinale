@@ -3,12 +3,13 @@ import { Application } from '../models/Application';
 import { MembershipGrade } from '../models/MembershipGrade';
 import { AuthRequest } from '../middleware/auth';
 import { calculateApplicationFee } from '../middleware/feeCalculation';
-import { sendSponsorAppraisalEmail, sendApplicationConfirmationEmail, sendAdminNotificationEmail } from '../services/emailService';
+import { sendSponsorAppraisalEmail, sendApplicationConfirmationEmail, sendInterviewNotificationEmail, sendStatusUpdateEmail } from '../services/emailService';
 import { validationResult } from 'express-validator';
 import crypto from 'crypto';
 import GradingService from '../services/GradingService';
 import DivisionMappingService from '../services/DivisionMappingService';
 import AdminVerificationService from '../services/AdminVerificationService';
+import RegistrationNumberService from '../services/RegistrationNumberService';
 import { deleteUploadedFile } from '../middleware/fileUpload';
 
 export const createApplication = async (req: AuthRequest, res: Response) => {
@@ -124,7 +125,7 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
           sponsorToken: sponsor.appraisalToken,
         });
       } catch (error) {
-        console.error(`Error sending sponsor email to ${sponsor.email}:`, error);
+        console.error(`Error sending sponsor email to ${sponsor.sponsorEmail}:`, error);
         // Don't fail the submission if sponsor email fails
       }
     }
@@ -132,11 +133,11 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
     // Send admin notification email with attached PDFs
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@zie.org.zw';
     try {
-      await sendAdminNotificationEmail(
+      // Admin notification for new application submitted
+      await sendApplicationConfirmationEmail(
         adminEmail,
-        `${personalParticulars.firstName} ${personalParticulars.lastName}`,
-        application._id.toString(),
-        application.uploadedFiles
+        'Admin',
+        application._id.toString()
       );
     } catch (error) {
       console.error('Error sending admin notification:', error);
@@ -244,8 +245,21 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response) =
       });
     }
 
+    const oldStatus = application.status;
     application.status = status;
     await application.save();
+
+    // Send status update email to applicant
+    try {
+      await sendStatusUpdateEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        status
+      );
+    } catch (emailError) {
+      console.error('Failed to send status update email:', emailError);
+      // Don't fail the request if email fails
+    }
 
     res.json(application);
   } catch (error) {
@@ -403,8 +417,8 @@ export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Unauthorized access' });
     }
 
-    // Get the uploaded file
-    const paymentProofFile = (req.files as any)?.nationalIdCopy?.[0];
+    // Get the uploaded file from req.file (single file upload)
+    const paymentProofFile = req.file;
     
     if (!paymentProofFile) {
       return res.status(400).json({ message: 'No payment proof file provided' });
@@ -466,13 +480,13 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
       await sendApplicationConfirmationEmail(
         application.personalParticulars.email,
         `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
-        `Your payment of $${application.applicationFee} has been verified. Your application will now proceed to review.`
+        application._id.toString()
       );
     } else {
       await sendApplicationConfirmationEmail(
         application.personalParticulars.email,
         `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
-        `Your payment proof was rejected. Reason: ${rejectionReason || 'Please contact admin for details.'} Please resubmit a valid payment proof.`
+        application._id.toString()
       );
     }
 
@@ -482,5 +496,386 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Process payment (dummy payment)
+export const processPayment = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { paymentMethod } = req.body; // dummy payment method
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Verify applicant is the owner
+    if (application.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    // Process dummy payment (always succeeds)
+    application.paymentStatus = 'completed';
+    application.paymentDate = new Date();
+    application.status = 'Submitted'; // Move to Submitted status after payment
+    await application.save();
+
+    res.json({
+      message: 'Payment processed successfully',
+      paymentStatus: application.paymentStatus,
+      paymentDate: application.paymentDate,
+      applicationId: application._id,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Set manual grade and division by admin
+export const setManualGrade = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { grade, division, notes } = req.body;
+
+    console.log('setManualGrade called with ID:', id);
+    console.log('User role:', req.userRole);
+
+    // Verify admin user
+    if (req.userRole !== 'Admin') {
+      return res.status(403).json({ message: 'Only admins can set manual grades' });
+    }
+
+    // Get admin info
+    const { User } = require('../models/User');
+    const admin = await User.findById(req.userId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const application = await Application.findById(id);
+    console.log('Application found:', !!application);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Set manual grade
+    application.manualGrade = {
+      grade,
+      division,
+      setBy: req.userId as any,
+      setByEmail: admin.email,
+      setByName: admin.username,
+      setAt: new Date(),
+      notes,
+    };
+
+    await application.save();
+
+    res.json({
+      message: 'Manual grade set successfully',
+      manualGrade: application.manualGrade,
+    });
+  } catch (error) {
+    console.error('Error in setManualGrade:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Add admin approval for interview
+export const addAdminApproval = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Verify admin user
+    if (req.userRole !== 'Admin') {
+      return res.status(403).json({ message: 'Only admins can approve interviews' });
+    }
+
+    // Get admin info
+    const { User } = require('../models/User');
+    const admin = await User.findById(req.userId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Check if admin already approved
+    const alreadyApproved = application.adminApprovals.some(
+      (approval: any) => approval.adminId.toString() === req.userId
+    );
+
+    if (alreadyApproved) {
+      return res.status(400).json({ message: 'Admin has already approved this application' });
+    }
+
+    // Add approval
+    application.adminApprovals.push({
+      adminId: req.userId as any,
+      adminEmail: admin.email,
+      adminName: admin.username,
+      approvedAt: new Date(),
+    });
+
+    // If 3 approvals reached, set status to Interview Required and send email
+    if (application.adminApprovals.length >= 3) {
+      application.status = 'Interview Required';
+      
+      // Send interview invitation email
+      await sendApplicationConfirmationEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        application._id.toString()
+      );
+    }
+
+    await application.save();
+
+    res.json({
+      message: 'Approval added successfully',
+      approvalsCount: application.adminApprovals.length,
+      status: application.status,
+      adminApprovals: application.adminApprovals,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Send interview notification to applicant
+export const sendInterviewNotification = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { message: notificationMessage } = req.body;
+
+    // Verify admin user
+    if (req.userRole !== 'Admin') {
+      return res.status(403).json({ message: 'Only admins can send interview notifications' });
+    }
+
+    // Get admin info
+    const { User } = require('../models/User');
+    const admin = await User.findById(req.userId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Set interview notification
+    application.interviewNotification = {
+      sentAt: new Date(),
+      sentBy: req.userId as any,
+      sentByEmail: admin.email,
+      sentByName: admin.username,
+      message: notificationMessage,
+    };
+
+    await application.save();
+
+    // Send email to applicant with proper interview notification template
+    try {
+      await sendInterviewNotificationEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        notificationMessage
+      );
+    } catch (emailError) {
+      console.error('Failed to send interview notification email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    res.json({
+      message: 'Interview notification sent successfully',
+      interviewNotification: application.interviewNotification,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Update sponsors and send emails
+export const updateSponsors = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sponsors } = req.body;
+
+    if (!sponsors || !Array.isArray(sponsors)) {
+      return res.status(400).json({ message: 'Sponsors must be an array' });
+    }
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Verify the user owns this application
+    if (application.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'You do not have permission to update this application' });
+    }
+
+    // Create sponsors with tokens
+    const processedSponsors = sponsors.map((sponsor: any) => ({
+      sponsorName: sponsor.name || sponsor.sponsorName,
+      sponsorEmail: sponsor.email || sponsor.sponsorEmail,
+      appraisalToken: crypto.randomBytes(32).toString('hex'),
+      isConfidential: true,
+    }));
+
+    // Update sponsors
+    application.sponsors = processedSponsors;
+    await application.save();
+
+    // Send appraisal emails to new sponsors
+    for (const sponsor of processedSponsors) {
+      try {
+        await sendSponsorAppraisalEmail({
+          applicantName: `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+          applicantEmail: application.personalParticulars.email,
+          sponsorName: sponsor.sponsorName,
+          sponsorEmail: sponsor.sponsorEmail,
+          applicationId: application._id.toString(),
+          sponsorToken: sponsor.appraisalToken,
+        });
+      } catch (error) {
+        console.error(`Error sending sponsor email to ${sponsor.sponsorEmail}:`, error);
+        // Don't fail the update if sponsor email fails
+      }
+    }
+
+    res.json({
+      message: 'Sponsors updated and notifications sent successfully',
+      sponsors: processedSponsors,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Get certificate data for passed interview applicant
+export const getCertificate = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Verify user owns this application or is admin
+    if (application.userId.toString() !== req.userId && req.userRole !== 'Admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Check if interview has been passed and registration number exists
+    if (application.status !== 'Passed' || !application.registrationNumber) {
+      return res.status(400).json({ 
+        message: 'Certificate is only available after passing the interview' 
+      });
+    }
+
+    const certificateData = {
+      name: `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+      registrationNumber: application.registrationNumber,
+      grade: application.chosenGrade,
+      division: application.chosenSpecialistDivision,
+      interviewPassedDate: application.interviewPassedDate,
+      issuedDate: new Date(),
+    };
+
+    res.json(certificateData);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Update status to "Passed" and generate registration number
+export const passInterview = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    console.log('=== Pass Interview Request ===');
+    console.log('Application ID:', id);
+    console.log('User Role:', req.userRole);
+    console.log('User ID:', req.userId);
+
+    // Verify admin user
+    if (req.userRole !== 'Admin') {
+      console.error('Non-admin user attempted to pass interview:', req.userRole);
+      return res.status(403).json({ message: 'Only admins can mark interviews as passed' });
+    }
+
+    const application = await Application.findById(id);
+    if (!application) {
+      console.error('Application not found:', id);
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    console.log('Current status:', application.status);
+    console.log('Current registration number:', application.registrationNumber);
+
+    // Check if not already passed
+    if (application.status === 'Passed') {
+      console.warn('Interview already marked as passed');
+      return res.status(400).json({ message: 'Interview already marked as passed' });
+    }
+
+    // Generate registration number if not already generated
+    if (!application.registrationNumber) {
+      console.log('Generating registration number...');
+      const newRegNumber = await RegistrationNumberService.generateZIERegistrationNumber();
+      console.log('Generated registration number:', newRegNumber);
+      application.registrationNumber = newRegNumber;
+    }
+
+    application.status = 'Passed';
+    application.interviewPassedDate = new Date();
+
+    console.log('Saving application with status=Passed and registrationNumber=' + application.registrationNumber);
+    await application.save();
+    console.log('Application saved successfully');
+
+    // Send email to applicant about passing interview
+    try {
+      console.log('Sending email to:', application.personalParticulars.email);
+      await sendStatusUpdateEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        'Passed',
+        `Congratulations! You have been registered as ZIE Professional Member with Registration Number: ${application.registrationNumber}`
+      );
+      console.log('Email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send interview pass email:', emailError);
+    }
+
+    console.log('Returning response with:', {
+      status: application.status,
+      registrationNumber: application.registrationNumber,
+      interviewPassedDate: application.interviewPassedDate,
+    });
+
+    res.json({
+      message: 'Interview marked as passed successfully',
+      application: {
+        _id: application._id,
+        status: application.status,
+        registrationNumber: application.registrationNumber,
+        interviewPassedDate: application.interviewPassedDate,
+      },
+    });
+  } catch (error) {
+    console.error('Error in passInterview:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 };

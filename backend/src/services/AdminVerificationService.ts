@@ -169,10 +169,11 @@ class AdminVerificationService {
       'Submitted': ['Under Review', 'Rejected'],
       'Pending': ['Under Review', 'Interview Required', 'Rejected'],
       'Under Review': ['Approved', 'Rejected', 'Approved with Conditions', 'Interview Required'],
-      'Interview Required': ['Approved', 'Rejected', 'Approved with Conditions'],
-      'Approved': [],
+      'Interview Required': ['Approved', 'Rejected', 'Approved with Conditions', 'Passed'],
+      'Approved': ['Passed'],
       'Rejected': [],
-      'Approved with Conditions': ['Approved', 'Rejected'],
+      'Approved with Conditions': ['Approved', 'Rejected', 'Passed'],
+      'Passed': [],
     };
 
     return (validTransitions[currentStatus] || []).includes(newStatus);

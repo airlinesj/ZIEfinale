@@ -3,8 +3,25 @@ $zie-blue: #004A59;
 $zie-gold: #B99532;
 $zie-white: #FFFFFF;
 
+// Breakpoints
+$mobile: 480px;
+$tablet: 768px;
+$desktop: 1024px;
+
 * {
   box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  
+  @media (max-width: $tablet) {
+    font-size: 14px;
+  }
+  
+  @media (max-width: $mobile) {
+    font-size: 13px;
+  }
 }
 
 body {
@@ -12,6 +29,8 @@ body {
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background-color: $zie-white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Thick border aesthetic */
@@ -19,17 +38,38 @@ input, .card, .btn, .form-container, .upload-zone {
   border: 2.5px solid $zie-blue !important;
 }
 
+/* Button Styles - Responsive */
 .btn-primary {
   background-color: $zie-blue;
   color: white;
   font-weight: 700;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: 2.5px solid $zie-blue !important;
+  min-height: 44px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  touch-action: manipulation;
 
   &:hover {
     border-color: $zie-gold !important;
     background-color: darken($zie-blue, 10%);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  @media (max-width: $tablet) {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: $mobile) {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    width: 100%;
   }
 }
 
@@ -38,15 +78,36 @@ input, .card, .btn, .form-container, .upload-zone {
   color: $zie-blue;
   font-weight: 700;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: 2.5px solid $zie-gold !important;
+  min-height: 44px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  touch-action: manipulation;
 
   &:hover {
     border-color: $zie-blue !important;
     background-color: darken($zie-gold, 10%);
   }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  @media (max-width: $tablet) {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: $mobile) {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    width: 100%;
+  }
 }
 
+/* Header - Responsive */
 .header {
   position: fixed;
   top: 0;
@@ -59,20 +120,54 @@ input, .card, .btn, .form-container, .upload-zone {
   align-items: center;
   padding: 0 20px;
   z-index: 1000;
+  gap: 10px;
 
   .logo {
     height: 60px;
     width: auto;
+    object-fit: contain;
   }
 
   .title {
     margin-left: 20px;
-    font-size: 24px;
+    font-size: 1.5rem;
     font-weight: 700;
     color: $zie-blue;
+    letter-spacing: 1px;
+  }
+
+  @media (max-width: $tablet) {
+    height: 70px;
+    padding: 0 15px;
+
+    .logo {
+      height: 50px;
+    }
+
+    .title {
+      margin-left: 10px;
+      font-size: 1.1rem;
+    }
+  }
+
+  @media (max-width: $mobile) {
+    height: 60px;
+    padding: 0 10px;
+    gap: 5px;
+
+    .logo {
+      height: 40px;
+    }
+
+    .title {
+      margin-left: 5px;
+      font-size: 0.95rem;
+      letter-spacing: 0px;
+    }
   }
 }
 
+/* Container - Responsive */
 .container {
   margin-top: 80px;
   margin-left: 250px;
@@ -80,15 +175,39 @@ input, .card, .btn, .form-container, .upload-zone {
   max-width: 1200px;
   margin-right: auto;
   transition: margin-left 0.3s ease;
+  min-height: calc(100vh - 80px);
+
+  @media (max-width: $tablet) {
+    margin-left: 200px;
+    padding: 15px;
+  }
+
+  @media (max-width: $mobile) {
+    margin-left: 0;
+    padding: 10px;
+  }
 }
 
+/* Card Styles - Responsive */
 .card {
   background-color: $zie-white;
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 74, 89, 0.1);
+
+  @media (max-width: $tablet) {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  @media (max-width: $mobile) {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
 }
 
+/* Form Elements - Responsive */
 input[type='text'],
 input[type='email'],
 input[type='password'],
@@ -97,31 +216,79 @@ input[type='date'],
 textarea,
 select {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   margin-bottom: 10px;
   border: 2.5px solid $zie-blue !important;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 1rem;
+  min-height: 44px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
 
   &:focus {
     outline: none;
     border-color: $zie-gold !important;
+    box-shadow: 0 0 0 3px rgba(185, 149, 50, 0.1);
+  }
+
+  @media (max-width: $tablet) {
+    padding: 10px;
+    font-size: 0.95rem;
+    min-height: 40px;
+  }
+
+  @media (max-width: $mobile) {
+    padding: 10px;
+    font-size: 1rem; // Prevents zoom on iOS
+    margin-bottom: 8px;
   }
 }
 
 textarea {
-  min-height: 100px;
+  min-height: 120px;
   resize: vertical;
+  padding-top: 12px;
+
+  @media (max-width: $mobile) {
+    min-height: 100px;
+  }
 }
 
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23004A59' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 35px;
+  cursor: pointer;
+}
+
+/* Form Group - Responsive */
 .form-group {
   margin-bottom: 15px;
 
   label {
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     font-weight: 600;
     color: $zie-blue;
+    font-size: 1rem;
+  }
+
+  @media (max-width: $tablet) {
+    margin-bottom: 12px;
+
+    label {
+      font-size: 0.95rem;
+    }
+  }
+
+  @media (max-width: $mobile) {
+    margin-bottom: 10px;
+
+    label {
+      font-size: 0.9rem;
+    }
   }
 }
 
@@ -135,4 +302,246 @@ textarea {
   color: #388e3c;
   font-size: 12px;
   margin-top: 5px;
+}
+
+/* Responsive Utility Classes */
+.d-none-mobile {
+  @media (max-width: $mobile) {
+    display: none !important;
+  }
+}
+
+.d-block-mobile {
+  display: none;
+  @media (max-width: $mobile) {
+    display: block !important;
+  }
+}
+
+.d-flex-mobile {
+  display: none;
+  @media (max-width: $mobile) {
+    display: flex !important;
+  }
+}
+
+.text-center-mobile {
+  @media (max-width: $mobile) {
+    text-align: center !important;
+  }
+}
+
+.mt-auto {
+  margin-top: auto;
+}
+
+.mb-auto {
+  margin-bottom: auto;
+}
+
+/* Grid Responsive */
+.grid-cols-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+
+  @media (max-width: $tablet) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: $mobile) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.grid-cols-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+
+  @media (max-width: $tablet) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: $mobile) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Flexbox Responsive */
+.flex-wrap-mobile {
+  @media (max-width: $mobile) {
+    flex-wrap: wrap !important;
+  }
+}
+
+.flex-col-mobile {
+  @media (max-width: $mobile) {
+    flex-direction: column !important;
+  }
+}
+
+/* Spacing Responsive */
+.p-responsive {
+  padding: 20px;
+
+  @media (max-width: $tablet) {
+    padding: 15px;
+  }
+
+  @media (max-width: $mobile) {
+    padding: 12px;
+  }
+}
+
+.gap-responsive {
+  gap: 15px;
+
+  @media (max-width: $tablet) {
+    gap: 12px;
+  }
+
+  @media (max-width: $mobile) {
+    gap: 10px;
+  }
+}
+
+/* Typography Responsive */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: $zie-blue;
+  margin: 20px 0;
+
+  @media (max-width: $tablet) {
+    font-size: 1.8rem;
+    margin: 15px 0;
+  }
+
+  @media (max-width: $mobile) {
+    font-size: 1.4rem;
+    margin: 12px 0;
+  }
+}
+
+h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: $zie-blue;
+  margin: 15px 0;
+
+  @media (max-width: $tablet) {
+    font-size: 1.4rem;
+    margin: 12px 0;
+  }
+
+  @media (max-width: $mobile) {
+    font-size: 1.1rem;
+    margin: 10px 0;
+  }
+}
+
+h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: $zie-blue;
+  margin: 12px 0;
+
+  @media (max-width: $tablet) {
+    font-size: 1.1rem;
+    margin: 10px 0;
+  }
+
+  @media (max-width: $mobile) {
+    font-size: 1rem;
+    margin: 8px 0;
+  }
+}
+
+p {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #333;
+
+  @media (max-width: $tablet) {
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: $mobile) {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+}
+
+/* Table Responsive */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+
+  th {
+    background-color: $zie-blue;
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 700;
+  }
+
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  tr:hover {
+    background-color: #f5f5f5;
+  }
+
+  @media (max-width: $mobile) {
+    font-size: 0.85rem;
+
+    th, td {
+      padding: 8px;
+    }
+  }
+}
+
+/* Scrollable table for mobile */
+.table-responsive {
+  overflow-x: auto;
+  margin-bottom: 15px;
+
+  @media (max-width: $mobile) {
+    margin-bottom: 10px;
+  }
+}
+
+/* Touch-friendly spacing */
+.touch-spacing {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+/* Loading spinner responsive */
+.spinner {
+  border: 3px solid $zie-gold;
+  border-top: 3px solid $zie-blue;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+
+  @media (max-width: $mobile) {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

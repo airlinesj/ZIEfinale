@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -44,9 +44,14 @@ import { AuthService } from '../services/auth.service';
           </div>
 
           <div class="form-group">
+            <p class="account-type-note">
+              You are registering as an <strong>Applicant</strong> to apply for ZIE membership.
+            </p>
+          </div>
+
+          <div class="form-group" *ngIf="isAdminModeActive">
             <label for="role">Account Type</label>
-            <select id="role" formControlName="role" class="form-input" (change)="onRoleChange()">
-              <option value="">Select Account Type</option>
+            <select id="role" formControlName="role" class="form-input">
               <option value="Applicant">Applicant (Membership Seeker)</option>
               <option value="Admin">Admin (Staff Only)</option>
             </select>
@@ -175,9 +180,145 @@ import { AuthService } from '../services/auth.service';
       font-size: 12px;
       margin-top: 8px;
       padding: 8px;
-      background-color: #fff3cd;
+      background-color: #f5f5f5;
       border-left: 3px solid #B99532;
-      padding-left: 10px;
+    }
+
+    .account-type-note {
+      color: #666;
+      font-size: 14px;
+      margin: 0;
+    }
+
+    @media (max-width: 768px) {
+      .register-container {
+        min-height: calc(100vh - 70px);
+        margin-top: 70px;
+        padding: 15px;
+      }
+
+      .register-card {
+        max-width: 100%;
+        padding: 25px;
+      }
+
+      h2 {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+        margin-bottom: 18px;
+      }
+
+      .form-group {
+        margin-bottom: 13px;
+      }
+
+      label {
+        font-size: 13px;
+        margin-bottom: 5px;
+      }
+
+      .form-input {
+        padding: 10px;
+        font-size: 16px;
+        min-height: 44px;
+      }
+
+      .btn-primary {
+        padding: 11px;
+        margin-top: 18px;
+        font-size: 14px;
+      }
+
+      .login-link {
+        font-size: 13px;
+        margin-top: 12px;
+      }
+
+      .error-message,
+      .success-message {
+        font-size: 12px;
+      }
+
+      .admin-note {
+        font-size: 12px;
+        padding: 6px;
+        margin-top: 6px;
+      }
+
+      .account-type-note {
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .register-container {
+        min-height: calc(100vh - 60px);
+        margin-top: 60px;
+        padding: 10px;
+      }
+
+      .register-card {
+        max-width: 100%;
+        padding: 20px;
+        border-radius: 6px;
+      }
+
+      h2 {
+        font-size: 1.3rem;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+        margin-bottom: 15px;
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+
+      label {
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+
+      .form-input {
+        padding: 10px;
+        font-size: 16px;
+        min-height: 44px;
+        margin-bottom: 0;
+      }
+
+      .btn-primary {
+        padding: 10px;
+        margin-top: 15px;
+        font-size: 13px;
+        width: 100%;
+      }
+
+      .login-link {
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      .error-message,
+      .success-message {
+        font-size: 11px;
+      }
+
+      .admin-note {
+        font-size: 11px;
+        padding: 6px;
+        margin-top: 6px;
+      }
+
+      .account-type-note {
+        font-size: 12px;
+      }
     }
   `]
 })
@@ -186,6 +327,9 @@ export class RegisterComponent implements OnInit {
   isLoading = false;
   errorMessage = '';
   successMessage = '';
+  isAdminModeActive = false;
+  private keySequence: string[] = [];
+  private adminKeySequence = ['shift', 'a', 'd', 'm', 'i', 'n']; // Ctrl+Shift+A then d,m,i,n
 
   constructor(
     private fb: FormBuilder,
@@ -197,8 +341,21 @@ export class RegisterComponent implements OnInit {
     this.registerForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
-      role: ['Applicant', Validators.required],
+      role: ['Applicant'],
     });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent): void {
+    // Secret keyboard shortcut: Ctrl+Shift+A to toggle admin mode
+    if (event.ctrlKey && event.shiftKey && event.key.toUpperCase() === 'A') {
+      event.preventDefault();
+      this.isAdminModeActive = !this.isAdminModeActive;
+      if (!this.isAdminModeActive) {
+        // Reset to Applicant when exiting admin mode
+        this.registerForm.get('role')?.setValue('Applicant');
+      }
+    }
   }
 
   onSubmit(): void {
@@ -212,7 +369,7 @@ export class RegisterComponent implements OnInit {
       next: (response) => {
         this.isLoading = false;
         this.successMessage = 'Account created successfully! Redirecting...';
-        const redirectUrl = this.registerForm.get('role')?.value === 'Admin' ? '/admin-dashboard' : '/form-m1';
+        const redirectUrl = response.user.role === 'Admin' ? '/admin-dashboard' : '/form-m1';
         setTimeout(() => this.router.navigate([redirectUrl]), 2000);
       },
       error: (error) => {
@@ -220,14 +377,6 @@ export class RegisterComponent implements OnInit {
         this.errorMessage = error.error?.message || 'Registration failed. Please try again.';
       },
     });
-  }
-
-  onRoleChange(): void {
-    // Force form re-validation when role changes
-    const emailControl = this.registerForm.get('email');
-    if (emailControl) {
-      emailControl.updateValueAndValidity();
-    }
   }
 
   goToLogin(): void {

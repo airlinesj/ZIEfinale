@@ -175,8 +175,9 @@ cp .env.example .env
 # Update .env with your configuration:
 # - MONGODB_URI: MongoDB connection string
 # - JWT_SECRET: Your secret key
-# - SMTP_HOST, SMTP_USER, SMTP_PASS: Email configuration
+# - SMTP_HOST, SMTP_USER, SMTP_PASS: Email configuration (CRITICAL - see Email Setup below)
 # - EXCHANGE_RATE: ZWL/ZiG to USD rate
+# - FRONTEND_URL: Frontend application URL (for sponsor appraisal links)
 
 # Run the server
 npm run dev      # Development with ts-node
@@ -305,6 +306,99 @@ On server startup:
 - Ensure `backend/uploads/` directory exists
 - Check file size limits
 - Verify PDF mime type validation
+
+## Email Configuration
+
+The ZIE portal sends automated sponsor appraisal invitations when applicants submit applications. **The system WILL NOT SEND EMAILS unless you configure real SMTP credentials.**
+
+### Why Email Configuration Matters
+
+1. When an applicant submits their Form M1, the system automatically sends confidential appraisal forms to their 3 sponsors
+2. Sponsors need to receive these emails to complete the workflow
+3. Without proper SMTP setup, sponsors never receive appraisal invitations
+
+### Configuring SMTP
+
+Edit `backend/.env` and update the SMTP settings. Your default `.env.example` has **placeholder values** - these MUST be replaced with real credentials.
+
+#### Option 1: Gmail (Recommended for small deployments)
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-character-app-password
+FRONTEND_URL=http://localhost:4200
+```
+
+**Steps to get Gmail credentials**:
+1. Enable 2-Factor Authentication on your Google account
+2. Visit: https://myaccount.google.com/apppasswords
+3. Select "Mail" and "Windows Computer"
+4. Google generates a 16-character password - copy this
+5. Paste as SMTP_PASS in .env
+
+**Important**: Use the **App Password**, not your regular Gmail password
+
+#### Option 2: Office 365 / Outlook
+
+```env
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=your-email@outlook.com
+SMTP_PASS=your-outlook-password
+FRONTEND_URL=http://localhost:4200
+```
+
+#### Option 3: Custom SMTP Server / Mailtrap
+
+```env
+SMTP_HOST=smtp.mailtrap.io
+SMTP_PORT=587
+SMTP_USER=your-mailtrap-username
+SMTP_PASS=your-mailtrap-password
+FRONTEND_URL=http://localhost:4200
+```
+
+### Testing Email Configuration
+
+After updating `.env`:
+
+1. **Restart the backend server**:
+   ```bash
+   # Stop current process (Ctrl+C)
+   npm run dev
+   ```
+
+2. **Look for configuration confirmation**:
+   - Open browser console (F12 → Network tab)
+   - Submit a test application
+   - Backend logs should show: `✓ Sponsor appraisal email sent successfully`
+
+3. **Check sponsor inbox**:
+   - Sponsor should receive email titled "ZIE Member Appraisal"
+   - Email contains confidential appraisal link
+   - Check spam folder if not found
+
+### Email Troubleshooting
+
+| Error | Solution |
+|-------|----------|
+| `SMTP NOT CONFIGURED: Email credentials are placeholders` | Replace placeholder values in .env with real credentials |
+| `Error: Invalid login` | Verify SMTP_USER and SMTP_PASS are correct (check for spaces/quotes) |
+| `INVALID EMAIL FORMAT: "invalid" is not a valid email` | Applicant entered invalid sponsor email in form |
+| Email in spam folder | Check that SMTP_USER (From address) matches your email provider |
+| No error but email not received | Check firewall allows outgoing SMTP on port 587 |
+
+### Email Details
+
+**Sender**: The address specified in SMTP_USER
+**Recipients**: Sponsor email addresses from application form
+**Subject**: `ZIE Member Appraisal - [Applicant Name]`
+**Content**: Confidential sponsorship appraisal form with unique token link
+**Token Expiry**: No expiry set (sponsors can review anytime)
+
+For detailed email configuration help, see: [EMAIL_SETUP_COMPLETE.md](./EMAIL_SETUP_COMPLETE.md)
 
 ## Future Enhancements
 

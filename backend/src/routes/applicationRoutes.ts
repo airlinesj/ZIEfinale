@@ -11,9 +11,16 @@ import {
   getApplicationPreview,
   uploadPaymentProof,
   verifyPayment,
+  processPayment,
+  setManualGrade,
+  addAdminApproval,
+  sendInterviewNotification,
+  updateSponsors,
+  getCertificate,
+  passInterview,
 } from '../controllers/applicationController';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
-import { multipleUploadPDF } from '../middleware/fileUpload';
+import { multipleUploadPDF, uploadPaymentProofPDF } from '../middleware/fileUpload';
 import { parseFormDataFields } from '../middleware/parseFormDataFields';
 import { Response } from 'express';
 
@@ -28,15 +35,31 @@ const applicationValidation = [
 ];
 
 // Routes
+// Specific routes first
+router.get('/admin/all', authMiddleware, adminMiddleware, getAllApplications);
+
+// POST routes with IDs
+router.post('/:id/payment-proof', authMiddleware, uploadPaymentProofPDF, uploadPaymentProof);
+router.post('/:id/process-payment', authMiddleware, processPayment);
+router.post('/:id/manual-grade', authMiddleware, adminMiddleware, setManualGrade);
+router.post('/:id/approve-interview', authMiddleware, adminMiddleware, addAdminApproval);
+router.post('/:id/send-interview-notification', authMiddleware, adminMiddleware, sendInterviewNotification);
+router.post('/:id/pass-interview', authMiddleware, adminMiddleware, passInterview);
+
+// PUT routes with IDs
+router.put('/:id/status', authMiddleware, adminMiddleware, updateApplicationStatus);
+router.put('/:id/checklist', authMiddleware, adminMiddleware, updateApplicationChecklist);
+router.put('/:id/sponsors', authMiddleware, updateSponsors);
+router.put('/:id/verify-payment', authMiddleware, adminMiddleware, verifyPayment);
+
+// GET routes with IDs
+router.get('/:id/preview', authMiddleware, adminMiddleware, getApplicationPreview);
+router.get('/:id/verification-report', authMiddleware, adminMiddleware, getVerificationReport);
+router.get('/:id/certificate', authMiddleware, getCertificate);
+
+// Root routes (must be last to avoid catching ID routes)
 router.post('/', authMiddleware, multipleUploadPDF, parseFormDataFields, applicationValidation, createApplication);
 router.get('/', authMiddleware, getApplicationByUser);
 router.get('/:id', authMiddleware, getApplicationById);
-router.get('/:id/preview', authMiddleware, adminMiddleware, getApplicationPreview);
-router.put('/:id/status', authMiddleware, adminMiddleware, updateApplicationStatus);
-router.put('/:id/checklist', authMiddleware, adminMiddleware, updateApplicationChecklist);
-router.get('/:id/verification-report', authMiddleware, adminMiddleware, getVerificationReport);
-router.post('/:id/payment-proof', authMiddleware, multipleUploadPDF, uploadPaymentProof);
-router.put('/:id/verify-payment', authMiddleware, adminMiddleware, verifyPayment);
-router.get('/admin/all', authMiddleware, adminMiddleware, getAllApplications);
 
 export default router;

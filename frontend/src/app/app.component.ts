@@ -38,6 +38,11 @@ import { filter } from 'rxjs';
     }
 
     @media (max-width: 768px) {
+      .main-content {
+        margin-top: 70px;
+        min-height: calc(100vh - 70px);
+      }
+
       .main-content.with-sidebar {
         margin-left: 200px;
       }
@@ -48,9 +53,15 @@ import { filter } from 'rxjs';
     }
 
     @media (max-width: 480px) {
-      .main-content.with-sidebar,
-      .main-content.sidebar-collapsed {
-        margin-left: 0;
+      .main-content {
+        margin-top: 60px;
+        min-height: calc(100vh - 60px);
+        margin-left: 0 !important;
+      }
+
+      .main-content.landing {
+        margin-top: 0;
+        min-height: 100vh;
       }
     }
   `],

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
+import { AuthService } from '../services/auth.service';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -798,6 +799,7 @@ export class FormM1Component implements OnInit {
   estimatedFee = 0;
   selectedGradeRequirements: any = null;
   suggestedGrade: string = '';
+  currentUserId: string | null = null;
   
   // File handling properties
   uploadedFiles: {
@@ -818,12 +820,38 @@ export class FormM1Component implements OnInit {
   constructor(
     private fb: FormBuilder,
     private applicationService: ApplicationService,
+    private authService: AuthService,
     private router: Router,
     private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
     this.initializeForms();
+    
+    // Subscribe to current user changes to detect when user logs in/out
+    this.authService.currentUser$.subscribe((user: any) => {
+      const newUserId = user?.id;
+      
+      // If user changed (different user or user logged out), clear form
+      if (this.currentUserId !== newUserId) {
+        this.currentUserId = newUserId;
+        
+        // Clear form controls
+        this.clearForms();
+        
+        // Clear localStorage form data when user changes
+        localStorage.removeItem('applicationFormData');
+        
+        // If a new user logged in, load their saved data (if any)
+        if (newUserId) {
+          setTimeout(() => {
+            this.loadFormData();
+          }, 100);
+        }
+      }
+    });
+    
+    // Initial load
     this.loadFormData();
     
     // Auto-save form data every 5 seconds
@@ -903,6 +931,49 @@ export class FormM1Component implements OnInit {
   clearSavedFormData(): void {
     localStorage.removeItem('applicationFormData');
     console.log('Saved form data cleared');
+  }
+
+  /**
+   * Clear all form fields by resetting controls
+   */
+  clearForms(): void {
+    if (this.personalParticularsForm) {
+      this.personalParticularsForm.reset();
+    }
+    if (this.educationForm) {
+      this.educationForm.reset();
+      // Keep at least one education entry
+      const educationArray = this.educationForm.get('education') as FormArray;
+      if (educationArray.length === 0) {
+        educationArray.push(this.createEducationGroup());
+      } else {
+        educationArray.at(0).reset();
+      }
+    }
+    if (this.experienceForm) {
+      this.experienceForm.reset();
+      // Keep at least one experience entry
+      const experienceArray = this.experienceForm.get('experience') as FormArray;
+      if (experienceArray.length === 0) {
+        experienceArray.push(this.createExperienceGroup());
+      } else {
+        experienceArray.at(0).reset();
+      }
+    }
+    if (this.gradeForm) {
+      this.gradeForm.reset();
+      this.selectedGradeRequirements = null;
+      this.estimatedFee = 0;
+    }
+    if (this.sponsorsForm) {
+      const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
+      for (let i = 0; i < sponsorsArray.length; i++) {
+        sponsorsArray.at(i).reset();
+      }
+    }
+    this.uploadedFiles = { certificates: [] };
+    this.uploadedFileNames = { certificates: [] };
+    console.log('All form fields cleared');
   }
 
   /**
@@ -1445,7 +1516,7 @@ export class FormM1Component implements OnInit {
       next: (response) => {
         this.isSubmitting = false;
         this.successMessage =
-          'Application submitted successfully! You will receive confirmation emails shortly.';
+          'Application submitted successfully! Redirecting to payment page...';
         
         // Clear saved form data on successful submission
         this.clearSavedFormData();
@@ -1457,8 +1528,9 @@ export class FormM1Component implements OnInit {
           data: { applicationId: response._id || response.id }
         });
         
+        // Redirect to payment page instead of dashboard
         setTimeout(() => {
-          this.router.navigate(['/dashboard']);
+          this.router.navigate(['/payment']);
         }, 3000);
       },
       error: (error) => {

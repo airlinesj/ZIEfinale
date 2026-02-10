@@ -6,16 +6,26 @@ import { ApplicantDashboardComponent } from './pages/applicant-dashboard.compone
 import { FormM1Component } from './pages/form-m1.component';
 import { SponsorReviewComponent } from './pages/sponsor-review.component';
 import { AdminDashboardComponent } from './pages/admin-dashboard.component';
+import { AdminApplicationDetailsComponent } from './pages/admin-application-details.component';
+import { ApplicationDetailsComponent } from './pages/application-details.component';
 import { PaymentComponent } from './pages/payment.component';
+import { UpdatesComponent } from './pages/updates.component';
+import { ApplicationsListComponent } from './pages/applications-list.component';
+import { CertificateComponent } from './components/certificate.component';
+import { RoleGuard } from './guards/role.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent, pathMatch: 'full' },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
-  { path: 'dashboard', component: ApplicantDashboardComponent },
-  { path: 'form-m1', component: FormM1Component },
-  { path: 'payment', component: PaymentComponent },
+  { path: 'dashboard', component: ApplicantDashboardComponent, canActivate: [RoleGuard], data: { roles: ['Applicant'] } },
+  { path: 'form-m1', component: FormM1Component, canActivate: [RoleGuard], data: { roles: ['Applicant'] } },
+  { path: 'payment', component: PaymentComponent, canActivate: [RoleGuard], data: { roles: ['Applicant'] } },
+  { path: 'updates', component: UpdatesComponent, canActivate: [RoleGuard], data: { roles: ['Applicant'] } },
+  { path: 'certificate/:id', component: CertificateComponent, canActivate: [RoleGuard], data: { roles: ['Applicant'] } },
   { path: 'sponsor-review/:token', component: SponsorReviewComponent },
-  { path: 'admin-dashboard', component: AdminDashboardComponent },
+  { path: 'admin-dashboard', component: AdminDashboardComponent, canActivate: [RoleGuard], data: { roles: ['Admin'] } },
+  { path: 'applications-list', component: ApplicationsListComponent, canActivate: [RoleGuard], data: { roles: ['Admin'] } },
+  { path: 'application/:id', component: AdminApplicationDetailsComponent, canActivate: [RoleGuard], data: { roles: ['Admin'] } },
   { path: '**', redirectTo: '/' },
 ];
