@@ -82,8 +82,20 @@ export class CertificateComponent implements OnInit, OnDestroy {
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        // Calculate dimensions to fit the certificate properly on the page
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+        
+        const scaledWidth = imgWidth * ratio;
+        const scaledHeight = imgHeight * ratio;
+        
+        // Center the certificate on the PDF page
+        const xOffset = (pdfWidth - scaledWidth) / 2;
+        const yOffset = (pdfHeight - scaledHeight) / 2;
 
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, scaledWidth, scaledHeight);
 
         const filename = `ZIE_Certificate_${this.applicant?.registrationNumber || 'Unknown'}.pdf`;
         pdf.save(filename);
