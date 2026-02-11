@@ -18,8 +18,25 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/zie-db
 
 // Middleware
 app.use(helmet());
+
+// CORS configuration - allow multiple origins for dev and production
+const allowedOrigins = [
+  'http://localhost:4200',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-admin-application-details',
@@ -85,7 +86,7 @@ import { AuthService } from '../services/auth.service';
               <div class="document-item">
                 <span class="label">National ID Copy (PDF):</span>
                 <a *ngIf="selectedApplication.uploadedFiles?.nationalIdPath"
-                   [href]="'http://localhost:5000/api/uploads/' + selectedApplication.uploadedFiles.nationalIdPath"
+                   [href]="uploadsBaseUrl + '/' + selectedApplication.uploadedFiles.nationalIdPath"
                    target="_blank"
                    class="document-link">
                   📄 View PDF
@@ -96,7 +97,7 @@ import { AuthService } from '../services/auth.service';
                 <span class="label">Certificates (PDF):</span>
                 <div *ngIf="selectedApplication.uploadedFiles?.certificatePaths && selectedApplication.uploadedFiles.certificatePaths.length > 0" class="certificate-list">
                   <a *ngFor="let certPath of selectedApplication.uploadedFiles.certificatePaths; let i = index"
-                     [href]="'http://localhost:5000/api/uploads/' + certPath"
+                     [href]="uploadsBaseUrl + '/' + certPath"
                      target="_blank"
                      class="document-link">
                     📄 Certificate {{ i + 1 }}
@@ -179,7 +180,7 @@ import { AuthService } from '../services/auth.service';
                 </div>
               </div>
               <a *ngIf="selectedApplication.paymentProof.filePath"
-                 [href]="'http://localhost:5000/api/uploads/' + selectedApplication.paymentProof.filePath"
+                 [href]="uploadsBaseUrl + '/' + selectedApplication.paymentProof.filePath"
                  target="_blank"
                  class="document-link">
                 📎 View Payment Proof
@@ -1537,6 +1538,11 @@ export class AdminApplicationDetailsComponent implements OnInit {
   updateSuccess = false;
   updateError = '';
   isEditingChecklist = false;
+  
+  // Dynamic base URL for uploads
+  get uploadsBaseUrl(): string {
+    return `${environment.apiUrl}/uploads`;
+  }
   manualGradeData = {
     grade: '',
     division: '',

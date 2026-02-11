@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-application-details',
@@ -83,7 +84,7 @@ import { AuthService } from '../services/auth.service';
             <div class="document-item">
               <span class="label">National ID Copy (PDF):</span>
               <a *ngIf="application.uploadedFiles?.nationalIdPath"
-                 [href]="'http://localhost:5000/api/uploads/' + application.uploadedFiles.nationalIdPath"
+                 [href]="uploadsBaseUrl + '/' + application.uploadedFiles.nationalIdPath"
                  target="_blank"
                  class="document-link">
                 📄 View PDF
@@ -94,7 +95,7 @@ import { AuthService } from '../services/auth.service';
               <span class="label">Certificates (PDF):</span>
               <div *ngIf="application.uploadedFiles?.certificatePaths && application.uploadedFiles.certificatePaths.length > 0" class="certificate-list">
                 <a *ngFor="let certPath of application.uploadedFiles.certificatePaths; let i = index"
-                   [href]="'http://localhost:5000/api/uploads/' + certPath"
+                   [href]="uploadsBaseUrl + '/' + certPath"
                    target="_blank"
                    class="document-link">
                   📄 Certificate {{ i + 1 }}
@@ -105,7 +106,7 @@ import { AuthService } from '../services/auth.service';
             <div class="document-item">
               <span class="label">Technical Report (PDF):</span>
               <a *ngIf="application.uploadedFiles?.technicalReportPath"
-                 [href]="'http://localhost:5000/api/uploads/' + application.uploadedFiles.technicalReportPath"
+                 [href]="uploadsBaseUrl + '/' + application.uploadedFiles.technicalReportPath"
                  target="_blank"
                  class="document-link">
                 📄 View PDF
@@ -210,7 +211,7 @@ import { AuthService } from '../services/auth.service';
 
                 <div class="proof-file">
                   <a *ngIf="application.paymentProof.filePath"
-                     [href]="'http://localhost:5000/api/uploads/' + application.paymentProof.filePath"
+                     [href]="uploadsBaseUrl + '/' + application.paymentProof.filePath"
                      target="_blank"
                      class="view-proof-link">
                     📎 View Payment Proof
@@ -1047,6 +1048,11 @@ export class ApplicationDetailsComponent implements OnInit {
   updateSuccess = false;
   updateError = '';
   paymentRejectionReason = '';
+
+  // Dynamic base URL for uploads
+  get uploadsBaseUrl(): string {
+    return `${environment.apiUrl}/uploads`;
+  }
 
   manualGradeData = {
     grade: '',

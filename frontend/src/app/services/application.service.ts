@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, interval } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 export interface ApplicationData {
   personalParticulars: {
@@ -39,7 +40,12 @@ export interface ApplicationData {
   providedIn: 'root',
 })
 export class ApplicationService {
-  private apiUrl = 'http://localhost:5000/api/applications';
+  private apiUrl = `${environment.apiUrl}/applications`;
+  
+  // Public getter for uploads base URL (used in components)
+  public get uploadsBaseUrl(): string {
+    return `${environment.apiUrl}/uploads`;
+  }
   private applicationUpdateSubject = new BehaviorSubject<any>(null);
   public applicationUpdate$ = this.applicationUpdateSubject.asObservable();
   
