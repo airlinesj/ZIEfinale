@@ -11,9 +11,9 @@ import { filter } from 'rxjs';
   standalone: true,
   imports: [RouterOutlet, HeaderComponent, SidebarComponent, CommonModule],
   template: `
-    <app-header *ngIf="!isLandingPage && !isAuthPage"></app-header>
-    <app-sidebar *ngIf="!isLandingPage && !isAuthPage" (sidebarCollapseChange)="onSidebarCollapse($event)"></app-sidebar>
-    <div class="main-content" [ngClass]="{ 'with-sidebar': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && !sidebarCollapsed, 'sidebar-collapsed': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && sidebarCollapsed, 'landing': isLandingPage }">
+    <app-header *ngIf="!isLandingPage && !isAuthPage && !isFullscreenPage"></app-header>
+    <app-sidebar *ngIf="!isLandingPage && !isAuthPage && !isFullscreenPage" (sidebarCollapseChange)="onSidebarCollapse($event)"></app-sidebar>
+    <div class="main-content" [ngClass]="{ 'with-sidebar': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && !isFullscreenPage && !sidebarCollapsed, 'sidebar-collapsed': !isAdmin && isLoggedIn && !isLandingPage && !isAuthPage && !isFullscreenPage && sidebarCollapsed, 'landing': isLandingPage, 'fullscreen': isFullscreenPage }">
       <router-outlet></router-outlet>
     </div>
   `,
@@ -27,6 +27,12 @@ import { filter } from 'rxjs';
     .main-content.landing {
       margin-top: 0;
       height: 100vh;
+    }
+
+    .main-content.fullscreen {
+      margin-top: 0;
+      margin-left: 0 !important;
+      min-height: 100vh;
     }
 
     .main-content.with-sidebar {
@@ -72,6 +78,7 @@ export class AppComponent implements OnInit {
   isAdmin = false;
   isLandingPage = false;
   isAuthPage = false;
+  isFullscreenPage = false;
   sidebarCollapsed = false;
 
   constructor(private authService: AuthService, private router: Router) {}
@@ -102,5 +109,7 @@ export class AppComponent implements OnInit {
     this.isLandingPage = this.router.url === '/';
     const authPages = ['/login', '/register'];
     this.isAuthPage = authPages.includes(this.router.url);
+    // Fullscreen pages: certificate and sponsor review (no header/sidebar)
+    this.isFullscreenPage = this.router.url.startsWith('/certificate') || this.router.url.startsWith('/sponsor-review');
   }
 }

@@ -64,46 +64,68 @@ export class CertificateComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Use html2canvas to capture the certificate
-    html2canvas(element, {
-      backgroundColor: '#fdfbf4',
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      allowTaint: true
-    })
-      .then((canvas: HTMLCanvasElement) => {
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF.jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
+    // Scroll to top of the certificate wrapper to ensure full capture
+    const wrapper = document.querySelector('.certificate-wrapper');
+    if (wrapper) {
+      wrapper.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
 
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        
-        // Calculate dimensions to fit the certificate properly on the page
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-        
-        const scaledWidth = imgWidth * ratio;
-        const scaledHeight = imgHeight * ratio;
-        
-        // Center the certificate on the PDF page
-        const xOffset = (pdfWidth - scaledWidth) / 2;
-        const yOffset = (pdfHeight - scaledHeight) / 2;
-
-        pdf.addImage(imgData, 'PNG', xOffset, yOffset, scaledWidth, scaledHeight);
-
-        const filename = `ZIE_Certificate_${this.applicant?.registrationNumber || 'Unknown'}.pdf`;
-        pdf.save(filename);
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      // Use html2canvas to capture the certificate
+      html2canvas(element, {
+        backgroundColor: '#fdfbf4',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
       })
-      .catch((err: any) => {
-        console.error('Error generating PDF:', err);
-        this.error = 'Failed to generate PDF. Please try again.';
-      });
+        .then((canvas: HTMLCanvasElement) => {
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF.jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          
+          // Calculate aspect ratio to fit certificate on A4
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          
+          // Use width-based scaling with padding
+          const margin = 10; // 10mm margin
+          const availableWidth = pdfWidth - (margin * 2);
+          const availableHeight = pdfHeight - (margin * 2);
+          
+          const widthRatio = availableWidth / (imgWidth / 2); // divide by scale
+          const heightRatio = availableHeight / (imgHeight / 2);
+          const ratio = Math.min(widthRatio, heightRatio);
+          
+          const scaledWidth = (imgWidth / 2) * ratio;
+          const scaledHeight = (imgHeight / 2) * ratio;
+          
+          // Center on page
+          const xOffset = (pdfWidth - scaledWidth) / 2;
+          const yOffset = (pdfHeight - scaledHeight) / 2;
+
+          pdf.addImage(imgData, 'PNG', xOffset, yOffset, scaledWidth, scaledHeight);
+
+          const filename = `ZIE_Certificate_${this.applicant?.registrationNumber || 'Unknown'}.pdf`;
+          pdf.save(filename);
+        })
+        .catch((err: any) => {
+          console.error('Error generating PDF:', err);
+          this.error = 'Failed to generate PDF. Please try again.';
+        });
+    }, 100);
   }
 
   backToUpdates(): void {
