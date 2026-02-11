@@ -1521,12 +1521,20 @@ export class FormM1Component implements OnInit {
         // Clear saved form data on successful submission
         this.clearSavedFormData();
         
-        // Show dialog
+        // Show dialog with email status
         this.dialog.open(SubmissionSuccessDialog, {
           width: '400px',
           disableClose: false,
-          data: { applicationId: response._id || response.id }
+          data: { 
+            applicationId: response.application?.id || response._id || response.id,
+            emailStatus: response.emailStatus
+          },
+          position: { top: '50%', left: '50%' },
+          panelClass: 'submission-dialog-panel'
         });
+        
+        // Log email status for debugging
+        console.log('📧 Email Send Status:', response.emailStatus);
         
         // Redirect to payment page instead of dashboard
         setTimeout(() => {
@@ -1563,6 +1571,8 @@ import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-submission-success-dialog',
+  standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="dialog-content">
       <div class="success-icon">✓</div>
@@ -1575,6 +1585,10 @@ import { MAT_DIALOG_DATA } from '@angular/material/dialog';
       </p>
       <p class="info-text">
         <strong>Application ID:</strong> {{ data?.applicationId }}
+      </p>
+      <p class="next-steps">
+        Sponsor appraisal emails sent: <strong *ngIf="data?.emailStatus?.totalSent">{{ data?.emailStatus?.totalSent }}/3 ✓</strong>
+        <span *ngIf="data?.emailStatus?.totalFailed > 0" style="color: #ff6b6b;"> ({{ data?.emailStatus?.totalFailed }} failed)</span>
       </p>
       <p class="next-steps">
         Your sponsors will also receive appraisal requests via email.

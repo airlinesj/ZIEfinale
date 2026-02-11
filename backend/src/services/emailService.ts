@@ -9,15 +9,28 @@ const isSMTPConfigured = (): boolean => {
   return !!hasAllRequired && !!hasNoPlaceholders;
 };
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Create transporter lazily - only when needed
+let transporter: any = null;
+
+const getTransporter = () => {
+  if (!transporter) {
+    console.log('🔧 [EMAIL SERVICE] Creating Nodemailer transporter...');
+    console.log('   SMTP_HOST:', process.env.SMTP_HOST);
+    console.log('   SMTP_PORT:', process.env.SMTP_PORT);
+    console.log('   SMTP_USER:', process.env.SMTP_USER);
+    
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return transporter;
+};
 
 // Validate email format
 const isValidEmail = (email: string): boolean => {
@@ -35,6 +48,11 @@ export interface SponsorAppraisalRequest {
 }
 
 export const sendSponsorAppraisalEmail = async (data: SponsorAppraisalRequest) => {
+  console.log('📧 [EMAIL SERVICE] Attempting to send sponsor appraisal email...');
+  console.log('   Sponsor Email:', data.sponsorEmail);
+  console.log('   Sponsor Name:', data.sponsorName);
+  console.log('   Applicant Name:', data.applicantName);
+  
   // Validate SMTP configuration
   if (!isSMTPConfigured()) {
     console.error('⚠️ SMTP NOT CONFIGURED: Email credentials are placeholders. Check your .env file!');
@@ -70,7 +88,7 @@ export const sendSponsorAppraisalEmail = async (data: SponsorAppraisalRequest) =
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
+    const info = await getTransporter().sendMail(mailOptions);
     console.log(`✓ Sponsor appraisal email sent successfully to ${data.sponsorEmail}`);
     console.log(`  Message ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
@@ -107,7 +125,7 @@ export const sendApplicationConfirmationEmail = async (
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await getTransporter().sendMail(mailOptions);
     console.log(`Confirmation email sent to ${applicantEmail}`);
   } catch (error) {
     console.error('Error sending confirmation email:', error);
@@ -147,7 +165,7 @@ export const sendInterviewNotificationEmail = async (
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await getTransporter().sendMail(mailOptions);
     console.log(`Interview notification sent to ${applicantEmail}`);
   } catch (error) {
     console.error('Error sending interview notification:', error);
@@ -188,7 +206,7 @@ export const sendStatusUpdateEmail = async (
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await getTransporter().sendMail(mailOptions);
     console.log(`Status update email sent to ${applicantEmail}`);
   } catch (error) {
     console.error('Error sending status update email:', error);

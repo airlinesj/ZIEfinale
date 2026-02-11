@@ -72,12 +72,20 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
     const applicationFee = calculateApplicationFee(grade.baseFee, exchangeRate);
 
     // Create sponsors with tokens
+    console.log('📧 [SPONSOR DATA] Received sponsors from request:');
+    console.log('   Raw sponsors:', JSON.stringify(sponsors));
+    
     const processedSponsors = sponsors.map((sponsor: any) => ({
       sponsorName: sponsor.name || sponsor.sponsorName,
       sponsorEmail: sponsor.email || sponsor.sponsorEmail,
       appraisalToken: crypto.randomBytes(32).toString('hex'),
       isConfidential: true,
     }));
+
+    console.log('📧 [SPONSOR DATA] Processed sponsors:');
+    processedSponsors.forEach((s: any, i: number) => {
+      console.log(`   Sponsor ${i + 1}: "${s.sponsorName}" <${s.sponsorEmail}>`);
+    });
 
     // Create application
     const application = new Application({
@@ -114,9 +122,14 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
     );
 
     // Send appraisal emails to sponsors
+    console.log('📧 [EMAIL SENDING] Starting sponsor email send process...');
+    console.log('   Total sponsors to email:', processedSponsors.length);
+    
+    const emailResults = [];
     for (const sponsor of processedSponsors) {
       try {
-        await sendSponsorAppraisalEmail({
+        console.log(`📧 [EMAIL SENDING] Sending to: "${sponsor.sponsorName}" <${sponsor.sponsorEmail}>`);
+        const result = await sendSponsorAppraisalEmail({
           applicantName: `${personalParticulars.firstName} ${personalParticulars.lastName}`,
           applicantEmail: personalParticulars.email,
           sponsorName: sponsor.sponsorName,
@@ -124,11 +137,23 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
           applicationId: application._id.toString(),
           sponsorToken: sponsor.appraisalToken,
         });
+        emailResults.push({
+          sponsorEmail: sponsor.sponsorEmail,
+          success: result.success,
+          messageId: result.messageId,
+          error: result.error
+        });
+        console.log(`📧 [EMAIL SENDING] Result for ${sponsor.sponsorEmail}:`, result.success ? '✓ SUCCESS' : '✗ FAILED', result.error || result.messageId);
       } catch (error) {
-        console.error(`Error sending sponsor email to ${sponsor.sponsorEmail}:`, error);
-        // Don't fail the submission if sponsor email fails
+        console.error(`❌ [EMAIL SENDING] Exception sending to ${sponsor.sponsorEmail}:`, error);
+        emailResults.push({
+          sponsorEmail: sponsor.sponsorEmail,
+          success: false,
+          error: String(error)
+        });
       }
     }
+    console.log('📧 [EMAIL SENDING] Completed. Summary:', emailResults);
 
     // Send admin notification email with attached PDFs
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@zie.org.zw';
@@ -154,6 +179,11 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
         id: application._id,
         status: application.status,
         applicationFee,
+      },
+      emailStatus: {
+        sponsorEmailsSent: emailResults,
+        totalSent: emailResults.filter((r: any) => r.success).length,
+        totalFailed: emailResults.filter((r: any) => !r.success).length,
       },
     });
   } catch (error: any) {
@@ -404,6 +434,10 @@ export const getApplicationPreview = async (req: AuthRequest, res: Response) => 
  */
 export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
   try {
+    console.log('📤 [PAYMENT PROOF] File upload attempt');
+    console.log('   Files received:', req.file ? 'Yes' : 'No');
+    console.log('   File details:', req.file ? { filename: req.file.filename, mimetype: req.file.mimetype, size: req.file.size } : 'None');
+    
     const { id } = req.params;
 
     const application = await Application.findById(id);
@@ -421,6 +455,7 @@ export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
     const paymentProofFile = req.file;
     
     if (!paymentProofFile) {
+      console.error('❌ [PAYMENT PROOF] No file provided in request');
       return res.status(400).json({ message: 'No payment proof file provided' });
     }
 
@@ -432,6 +467,7 @@ export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
     };
 
     await application.save();
+    console.log('✓ [PAYMENT PROOF] Upload successful:', paymentProofFile.filename);
 
     res.json({
       message: 'Payment proof uploaded successfully',
@@ -441,8 +477,9 @@ export const uploadPaymentProof = async (req: AuthRequest, res: Response) => {
         verificationStatus: 'pending',
       }
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+  } catch (error: any) {
+    console.error('❌ [PAYMENT PROOF] Upload error:', error?.message || error);
+    res.status(500).json({ message: 'Server error', error: error?.message });
   }
 };
 

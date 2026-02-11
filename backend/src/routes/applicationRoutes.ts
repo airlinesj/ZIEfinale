@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import {
   createApplication,
@@ -22,7 +22,7 @@ import {
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
 import { multipleUploadPDF, uploadPaymentProofPDF } from '../middleware/fileUpload';
 import { parseFormDataFields } from '../middleware/parseFormDataFields';
-import { Response } from 'express';
+import { sendSponsorAppraisalEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -36,6 +36,62 @@ const applicationValidation = [
 
 // Routes
 // Specific routes first
+// DEBUG: Check SMTP configuration
+router.get('/admin/debug/smtp-config', (req: Request, res: Response) => {
+  res.json({
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASS: process.env.SMTP_PASS ? '***configured***' : 'NOT SET',
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    NODE_ENV: process.env.NODE_ENV,
+  });
+});
+
+// TEST: Send test email to verify email service is working
+router.post('/admin/debug/test-email', async (req: Request, res: Response) => {
+  try {
+    const { toEmail, sponsorName, applicantName } = req.body;
+    
+    if (!toEmail) {
+      return res.status(400).json({ error: 'toEmail required' });
+    }
+
+    console.log('🧪 [TEST EMAIL] Sending test email to:', toEmail);
+    
+    const result = await sendSponsorAppraisalEmail({
+      applicantName: applicantName || 'Test Applicant',
+      applicantEmail: 'test@example.com',
+      sponsorName: sponsorName || 'Test Sponsor',
+      sponsorEmail: toEmail,
+      applicationId: 'test-app-id',
+      sponsorToken: 'test-token-12345',
+    });
+
+    console.log('🧪 [TEST EMAIL] Result:', result);
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: `Test email sent successfully to ${toEmail}`,
+        messageId: result.messageId 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: result.error,
+        message: `Failed to send test email to ${toEmail}`
+      });
+    }
+  } catch (error: any) {
+    console.error('🧪 [TEST EMAIL] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 router.get('/admin/all', authMiddleware, adminMiddleware, getAllApplications);
 
 // POST routes with IDs

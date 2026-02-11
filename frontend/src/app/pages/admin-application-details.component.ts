@@ -240,6 +240,72 @@ import { AuthService } from '../services/auth.service';
             </div>
           </section>
 
+          <!-- Sponsor Appraisals Section -->
+          <section *ngIf="activeSection === 'sponsors'" #sponsorsSection class="content-section">
+            <div class="section-header">
+              <h2>Sponsor Appraisals</h2>
+              <p class="sponsor-count">{{ getSponsorResponseCount() }}/{{ selectedApplication?.sponsors?.length || 0 }} Responses Received</p>
+            </div>
+            <div class="section-content">
+              <div *ngIf="!selectedApplication?.sponsors || selectedApplication.sponsors.length === 0" class="no-sponsors">
+                <p>No sponsors have been assigned to this application yet.</p>
+              </div>
+              <div *ngFor="let sponsor of selectedApplication?.sponsors; let i = index" class="sponsor-card">
+                <div class="sponsor-header">
+                  <h4>Sponsor {{ i + 1 }}: {{ sponsor.sponsorName }}</h4>
+                  <span class="sponsor-status" [class.responded]="sponsor.responses" [class.pending]="!sponsor.responses">
+                    {{ sponsor.responses ? 'Responded' : 'Pending' }}
+                  </span>
+                </div>
+                <div class="sponsor-email">{{ sponsor.sponsorEmail }}</div>
+                
+                <div *ngIf="sponsor.responses" class="appraisal-responses">
+                  <div class="response-item">
+                    <strong>1. How long have you known the applicant?</strong>
+                    <p>{{ sponsor.responses.question1 }}</p>
+                  </div>
+                  <div class="response-item">
+                    <strong>2. What is your professional relationship with the applicant?</strong>
+                    <p>{{ sponsor.responses.question2 }}</p>
+                  </div>
+                  <div class="response-item">
+                    <strong>3. Describe the applicant's professional competence and technical knowledge.</strong>
+                    <p>{{ sponsor.responses.question3 }}</p>
+                  </div>
+                  <div class="response-item">
+                    <strong>4. What are the applicant's key strengths in their engineering practice?</strong>
+                    <p>{{ sponsor.responses.question4 }}</p>
+                  </div>
+                  <div class="response-item">
+                    <strong>5. Does the applicant meet the ethical standards required by the engineering profession?</strong>
+                    <p>{{ sponsor.responses.question5 }}</p>
+                  </div>
+                  <div class="response-item">
+                    <strong>6. Can you recommend the applicant for membership?</strong>
+                    <p class="recommendation" [class.positive]="sponsor.responses.question6 === 'Yes'" [class.conditional]="sponsor.responses.question6 === 'Yes with conditions'" [class.negative]="sponsor.responses.question6 === 'No'">
+                      {{ sponsor.responses.question6 }}
+                    </p>
+                  </div>
+                  <div class="response-item" *ngIf="sponsor.responses.question7">
+                    <strong>7. Conditions/Explanation:</strong>
+                    <p>{{ sponsor.responses.question7 }}</p>
+                  </div>
+                  <div class="response-item" *ngIf="sponsor.responses.question8">
+                    <strong>8. Additional Comments:</strong>
+                    <p>{{ sponsor.responses.question8 }}</p>
+                  </div>
+                  <div class="response-date" *ngIf="sponsor.submittedAt">
+                    <em>Submitted: {{ sponsor.submittedAt | date: 'medium' }}</em>
+                  </div>
+                </div>
+                
+                <div *ngIf="!sponsor.responses" class="pending-notice">
+                  <p>Awaiting response from sponsor...</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Interview Approval Section -->
           <section *ngIf="activeSection === 'interviews'" #interviewsSection class="content-section">
             <div class="section-header">
@@ -380,14 +446,9 @@ import { AuthService } from '../services/auth.service';
                   <label for="statusUpdate">New Status:</label>
                   <select [(ngModel)]="selectedStatus" id="statusUpdate" class="form-input">
                     <option value="">Select Status</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Interview Required">Interview Required</option>
-                    <option value="Approved with Conditions">Approved with Conditions</option>
-                    <option value="Rejected">Rejected</option>
+                    <option *ngFor="let status of getAvailableStatuses()" [value]="status">{{ status }}</option>
                   </select>
+                  <small class="status-hint">Current: <strong>{{ selectedApplication.status }}</strong></small>
                 </div>
                 <button (click)="updateApplicationStatus()" class="btn-primary">Update Status</button>
               </div>
@@ -913,6 +974,147 @@ import { AuthService } from '../services/auth.service';
       border: 1px solid #e0e0e0;
     }
 
+    /* Sponsor Appraisals Styles */
+    .sponsor-count {
+      color: #666;
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .no-sponsors {
+      text-align: center;
+      padding: 30px;
+      color: #666;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .sponsor-card {
+      background-color: #f9f9f9;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .sponsor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+
+      h4 {
+        margin: 0;
+        color: #004A59;
+        font-size: 16px;
+      }
+    }
+
+    .sponsor-status {
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 12px;
+      font-weight: 600;
+
+      &.responded {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      &.pending {
+        background-color: #fff3e0;
+        color: #ef6c00;
+      }
+    }
+
+    .sponsor-email {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 15px;
+    }
+
+    .appraisal-responses {
+      border-top: 2px solid #B99532;
+      padding-top: 15px;
+      margin-top: 10px;
+    }
+
+    .response-item {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #e0e0e0;
+
+      &:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      strong {
+        display: block;
+        color: #004A59;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      p {
+        margin: 0;
+        color: #333;
+        font-size: 14px;
+        line-height: 1.5;
+        background-color: white;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #e0e0e0;
+      }
+    }
+
+    .recommendation {
+      font-weight: 600 !important;
+
+      &.positive {
+        color: #2e7d32 !important;
+        background-color: #e8f5e9 !important;
+        border-color: #a5d6a7 !important;
+      }
+
+      &.conditional {
+        color: #ef6c00 !important;
+        background-color: #fff3e0 !important;
+        border-color: #ffcc80 !important;
+      }
+
+      &.negative {
+        color: #c62828 !important;
+        background-color: #ffebee !important;
+        border-color: #ef9a9a !important;
+      }
+    }
+
+    .response-date {
+      text-align: right;
+      color: #999;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    .pending-notice {
+      text-align: center;
+      padding: 20px;
+      color: #ef6c00;
+      background-color: #fff3e0;
+      border-radius: 4px;
+      border: 1px dashed #ef6c00;
+
+      p {
+        margin: 0;
+      }
+    }
+
     .payment-details {
       margin-bottom: 15px;
 
@@ -1342,16 +1544,35 @@ export class AdminApplicationDetailsComponent implements OnInit {
   };
   interviewMessage = '';
 
+  // Valid status transitions - mirrors backend logic
+  validStatusTransitions: { [key: string]: string[] } = {
+    'Draft': ['Submitted', 'Rejected'],
+    'Submitted': ['Under Review', 'Rejected'],
+    'Pending': ['Under Review', 'Interview Required', 'Rejected'],
+    'Under Review': ['Approved', 'Rejected', 'Approved with Conditions', 'Interview Required'],
+    'Interview Required': ['Approved', 'Rejected', 'Approved with Conditions', 'Passed'],
+    'Approved': ['Passed'],
+    'Rejected': [],
+    'Approved with Conditions': ['Approved', 'Rejected', 'Passed'],
+    'Passed': [],
+  };
+
   navSections = [
     { id: 'personal', label: 'Personal Info' },
     { id: 'documents', label: 'Documents' },
     { id: 'checklist', label: 'Verification' },
     { id: 'payment', label: 'Payment' },
     { id: 'grading', label: 'Manual Grading' },
+    { id: 'sponsors', label: 'Sponsor Appraisals' },
     { id: 'interviews', label: 'Interviews' },
     { id: 'notification', label: 'Interview Notification' },
     { id: 'status', label: 'Update Status' },
   ];
+
+  getSponsorResponseCount(): number {
+    if (!this.selectedApplication?.sponsors) return 0;
+    return this.selectedApplication.sponsors.filter((s: any) => s.responses).length;
+  }
 
   constructor(
     private applicationService: ApplicationService,
@@ -1582,6 +1803,16 @@ export class AdminApplicationDetailsComponent implements OnInit {
         },
       });
     }
+  }
+
+  /**
+   * Get available status options based on current status
+   */
+  getAvailableStatuses(): string[] {
+    if (!this.selectedApplication) {
+      return [];
+    }
+    return this.validStatusTransitions[this.selectedApplication.status] || [];
   }
 
   viewCertificate(): void {
