@@ -82,7 +82,7 @@ import { RouterModule } from '@angular/router';
     }
 
     .landing-title {
-      font-family: 'Pacifico', cursive;
+      font-family: 'Poppins', sans-serif;
       font-size: 48px;
       font-weight: 900;
       color: #004A59;
@@ -91,11 +91,11 @@ import { RouterModule } from '@angular/router';
     }
 
     .landing-subtitle {
-      font-family: 'Pacifico', cursive;
+      font-family: 'Poppins', sans-serif;
       font-size: 20px;
       color: #B99532;
       margin-bottom: 30px;
-      font-weight: 900;
+      font-weight: 700;
     }
 
     .landing-description {
