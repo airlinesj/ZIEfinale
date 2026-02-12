@@ -28,6 +28,7 @@ export class PaymentComponent implements OnInit {
   isDragOver = false;
   isUploading = false;
   paymentVerificationStatus: any = null;
+  paymentCompletedRequiresProof = false; // Track if payment completed but proof not yet uploaded
 
   cardDetails = {
     holderName: '',
@@ -94,13 +95,15 @@ export class PaymentComponent implements OnInit {
       next: (response: any) => {
         this.isProcessing = false;
         this.paymentCompleted = true;
-        this.successMessage = `Payment of $${this.applicationFee.toFixed(2)} processed successfully! You will be redirected shortly.`;
+        this.paymentCompletedRequiresProof = true;
+        this.successMessage = `Payment of $${this.applicationFee.toFixed(2)} processed successfully! Please now upload proof of payment.`;
         this.clearCardDetails();
         
-        // Redirect to dashboard after 2 seconds
+        // Scroll to proof upload section
         setTimeout(() => {
-          this.router.navigate(['/dashboard']);
-        }, 2000);
+          const proofSection = document.querySelector('.proof-of-payment-section');
+          proofSection?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
       },
       error: (error: any) => {
         this.isProcessing = false;
@@ -119,12 +122,14 @@ export class PaymentComponent implements OnInit {
       next: (response: any) => {
         this.isProcessing = false;
         this.paymentCompleted = true;
-        this.successMessage = `Bank transfer of $${this.applicationFee.toFixed(2)} recorded successfully! Your application is now under review.`;
+        this.paymentCompletedRequiresProof = true;
+        this.successMessage = `Bank transfer of $${this.applicationFee.toFixed(2)} recorded successfully! Please now upload proof of payment.`;
         
-        // Redirect to dashboard after 2 seconds
+        // Scroll to proof upload section
         setTimeout(() => {
-          this.router.navigate(['/dashboard']);
-        }, 2000);
+          const proofSection = document.querySelector('.proof-of-payment-section');
+          proofSection?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
       },
       error: (error: any) => {
         this.isProcessing = false;
@@ -147,13 +152,15 @@ export class PaymentComponent implements OnInit {
       next: (response: any) => {
         this.isProcessing = false;
         this.paymentCompleted = true;
-        this.successMessage = `Mobile payment confirmed with ID: ${this.mobileTransactionId}. Your application is now under review.`;
+        this.paymentCompletedRequiresProof = true;
+        this.successMessage = `Mobile payment confirmed with ID: ${this.mobileTransactionId}. Please now upload proof of payment.`;
         this.mobileTransactionId = '';
         
-        // Redirect to dashboard after 2 seconds
+        // Scroll to proof upload section
         setTimeout(() => {
-          this.router.navigate(['/dashboard']);
-        }, 2000);
+          const proofSection = document.querySelector('.proof-of-payment-section');
+          proofSection?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
       },
       error: (error: any) => {
         this.isProcessing = false;
@@ -230,11 +237,17 @@ export class PaymentComponent implements OnInit {
       next: (response: any) => {
         this.isUploading = false;
         this.selectedPaymentFile = null;
-        this.successMessage = 'Payment proof uploaded successfully! Admin will verify within 1-2 business days.';
+        this.successMessage = 'Payment proof uploaded successfully! Admin will verify within 1-2 business days. Redirecting to dashboard...';
         this.paymentVerificationStatus = {
           status: 'pending',
           message: 'Payment verification pending - awaiting admin approval'
         };
+        this.paymentCompletedRequiresProof = false;
+        
+        // Redirect to dashboard after 2 seconds
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 2000);
       },
       error: (error: any) => {
         this.isUploading = false;

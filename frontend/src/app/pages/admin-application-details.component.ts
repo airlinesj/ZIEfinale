@@ -418,6 +418,28 @@ import { environment } from '../../environments/environment';
                 </span>
               </div>
 
+              <!-- Show rejection info if application is rejected -->
+              <div *ngIf="selectedApplication.status === 'Rejected' && selectedApplication.rejectionInfo" class="rejection-info-box">
+                <div class="rejection-detail">
+                  <strong>Rejection Reason:</strong>
+                  <p>{{ selectedApplication.rejectionInfo.rejectionReason }}</p>
+                </div>
+                <div class="rejection-detail">
+                  <strong>Rejected By:</strong>
+                  <p>{{ selectedApplication.rejectionInfo.rejectedByName }} ({{ selectedApplication.rejectionInfo.rejectedByEmail }})</p>
+                </div>
+                <div class="rejection-detail">
+                  <strong>Rejected At:</strong>
+                  <p>{{ selectedApplication.rejectionInfo.rejectionTimestamp | date: 'medium' }}</p>
+                </div>
+                <div class="rejection-detail edit-window">
+                  <strong>Edit Window:</strong>
+                  <p [ngClass]="rejectionEditWindowRemaining > 0 ? 'warning' : 'expired'">
+                    {{ getRejectionEditWindowDisplay() }}
+                  </p>
+                </div>
+              </div>
+
               <!-- Show interview invitation for "Interview Required" status -->
               <div *ngIf="selectedApplication.status === 'Interview Required'" class="interview-action">
                 <p class="action-description">Send an interview invitation to the applicant. They will be notified in their portal.</p>
@@ -451,6 +473,19 @@ import { environment } from '../../environments/environment';
                   </select>
                   <small class="status-hint">Current: <strong>{{ selectedApplication.status }}</strong></small>
                 </div>
+
+                <!-- Show rejection reason input if selecting "Rejected" status -->
+                <div *ngIf="selectedStatus === 'Rejected'" class="form-group">
+                  <label for="rejectionReason">Rejection Reason:</label>
+                  <textarea 
+                    [(ngModel)]="rejectionReason" 
+                    id="rejectionReason"
+                    class="form-input"
+                    placeholder="Please provide a reason for the rejection..."
+                    rows="4"></textarea>
+                  <small>Applicant will have 24 hours to revise and re-submit their application</small>
+                </div>
+
                 <button (click)="updateApplicationStatus()" class="btn-primary">Update Status</button>
               </div>
             </div>
@@ -1245,6 +1280,51 @@ import { environment } from '../../environments/environment';
       background-color: #f0f9f6;
     }
 
+    .rejection-info-box {
+      background-color: #ffeceb;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #c62828;
+      margin-top: 15px;
+      border: 2px solid #ffcccc;
+    }
+
+    .rejection-detail {
+      margin-bottom: 15px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        display: block;
+        color: #c62828;
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+
+      p {
+        margin: 0;
+        color: #555;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      &.edit-window {
+        p {
+          &.warning {
+            color: #ff9800;
+            font-weight: 600;
+          }
+
+          &.expired {
+            color: #c62828;
+            font-weight: 600;
+          }
+        }
+      }
+    }
+
     .action-description {
       margin: 0 0 15px 0;
       font-size: 14px;
@@ -1558,10 +1638,13 @@ export class AdminApplicationDetailsComponent implements OnInit {
     'Under Review': ['Approved', 'Rejected', 'Approved with Conditions', 'Interview Required'],
     'Interview Required': ['Approved', 'Rejected', 'Approved with Conditions', 'Passed'],
     'Approved': ['Passed'],
-    'Rejected': [],
+    'Rejected': ['Submitted'],  // Allow re-submission within 24 hours
     'Approved with Conditions': ['Approved', 'Rejected', 'Passed'],
     'Passed': [],
   };
+
+  rejectionReason = '';
+  rejectionEditWindowRemaining = 0;  // In seconds
 
   navSections = [
     { id: 'personal', label: 'Personal Info' },
@@ -1602,6 +1685,7 @@ export class AdminApplicationDetailsComponent implements OnInit {
       next: (app) => {
         if (!this.isEditingChecklist) {
           this.selectedApplication = app;
+          this.updateRejectionEditWindow();
         }
       },
       error: (error) => {
@@ -1609,6 +1693,25 @@ export class AdminApplicationDetailsComponent implements OnInit {
         this.updateError = 'Failed to load application';
       },
     });
+  }
+
+  updateRejectionEditWindow(): void {
+    if (this.selectedApplication?.rejectionInfo?.allowEditUntil) {
+      const now = new Date();
+      const allowEditUntil = new Date(this.selectedApplication.rejectionInfo.allowEditUntil);
+      const remainingMs = allowEditUntil.getTime() - now.getTime();
+      this.rejectionEditWindowRemaining = Math.max(0, Math.floor(remainingMs / 1000));
+    }
+  }
+
+  getRejectionEditWindowDisplay(): string {
+    if (this.rejectionEditWindowRemaining <= 0) {
+      return 'Editing window closed';
+    }
+    const hours = Math.floor(this.rejectionEditWindowRemaining / 3600);
+    const minutes = Math.floor((this.rejectionEditWindowRemaining % 3600) / 60);
+    const seconds = this.rejectionEditWindowRemaining % 60;
+    return `${hours}h ${minutes}m ${seconds}s remaining`;
   }
 
   navigateToSection(sectionId: string): void {
@@ -1672,12 +1775,26 @@ export class AdminApplicationDetailsComponent implements OnInit {
       return;
     }
 
-    this.applicationService.updateApplicationStatus(this.selectedApplication._id, this.selectedStatus).subscribe({
+    // If rejecting, require a reason
+    if (this.selectedStatus === 'Rejected' && !this.rejectionReason.trim()) {
+      this.updateError = 'Please provide a rejection reason';
+      return;
+    }
+
+    const statusData: any = { status: this.selectedStatus };
+    
+    if (this.selectedStatus === 'Rejected') {
+      statusData.rejectionReason = this.rejectionReason;
+    }
+
+    this.applicationService.updateApplicationStatus(this.selectedApplication._id, statusData).subscribe({
       next: (response) => {
         // Update the full application object to preserve all fields
         this.selectedApplication = response;
+        this.updateRejectionEditWindow();
         this.updateSuccess = true;
         this.updateError = '';
+        this.rejectionReason = '';
         setTimeout(() => (this.updateSuccess = false), 3000);
       },
       error: (error) => {

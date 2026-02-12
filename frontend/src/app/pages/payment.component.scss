@@ -306,6 +306,31 @@
     font-size: 14px;
     margin: 0 0 20px 0;
   }
+
+  &.required-step {
+    background: linear-gradient(135deg, #fff3e0 0%, #fffbf0 100%);
+    border: 2.5px solid #FF6F00;
+    box-shadow: 0 4px 15px rgba(255, 111, 0, 0.15);
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+
+      .badge {
+        background-color: #FF6F00;
+        color: white;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+    }
+
+    h2 {
+      color: #FF6F00;
+    }
+  }
 }
 
 .upload-card {

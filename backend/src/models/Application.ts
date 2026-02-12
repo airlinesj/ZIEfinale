@@ -36,6 +36,15 @@ export interface AdminApproval {
   approvedAt: Date;
 }
 
+export interface RejectionInfo {
+  rejectionTimestamp: Date;
+  rejectionReason: string;
+  rejectedBy: mongoose.Types.ObjectId;
+  rejectedByEmail: string;
+  rejectedByName: string;
+  allowEditUntil: Date;  // 24 hours from rejection
+}
+
 export interface ManualGrade {
   grade: 'Student' | 'Graduate' | 'Technician' | 'Technologist' | 'Member' | 'Fellow';
   division: string;
@@ -116,6 +125,7 @@ export interface IApplication extends Document {
   manualGrade?: ManualGrade;         // Admin manual grading
   adminApprovals: AdminApproval[];   // Array of approvals from different admins (need 3)
   interviewNotification?: InterviewNotification;  // Interview notification from admin
+  rejectionInfo?: RejectionInfo;     // Track rejection with 24-hour edit window
   sponsors: SponsorAppraisal[];
   adminChecklist: AdminChecklist;
   adminNotes: string;
@@ -283,6 +293,17 @@ const applicationSchema = new Schema<IApplication>(
       organogram: { type: Boolean, default: false },
       sponsorships: { type: Boolean, default: false },
       certificates: { type: Boolean, default: false },
+    },
+    rejectionInfo: {
+      rejectionTimestamp: { type: Date },
+      rejectionReason: { type: String },
+      rejectedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      rejectedByEmail: { type: String },
+      rejectedByName: { type: String },
+      allowEditUntil: { type: Date },  // 24 hours from rejection
     },
     adminNotes: { type: String, default: '' },
     confidentialFlag: { type: Boolean, default: false },

@@ -152,6 +152,7 @@ class AdminVerificationService {
   /**
    * Validate status transition
    * Ensures only valid state transitions
+   * Allows rejected applications to be re-submitted within 24 hours
    */
   isValidStatusTransition(
     currentStatus: string,
@@ -163,6 +164,15 @@ class AdminVerificationService {
       return false;
     }
 
+    // Check if transitioning from Rejected
+    if (currentStatus === 'Rejected' && newStatus === 'Submitted') {
+      // Allow re-submission only if within 24 hours of rejection
+      if (application.rejectionInfo?.allowEditUntil) {
+        return new Date() < application.rejectionInfo.allowEditUntil;
+      }
+      return false;
+    }
+
     // Valid status transitions
     const validTransitions: { [key: string]: string[] } = {
       'Draft': ['Submitted', 'Rejected'],
@@ -171,7 +181,7 @@ class AdminVerificationService {
       'Under Review': ['Approved', 'Rejected', 'Approved with Conditions', 'Interview Required'],
       'Interview Required': ['Approved', 'Rejected', 'Approved with Conditions', 'Passed'],
       'Approved': ['Passed'],
-      'Rejected': [],
+      'Rejected': ['Submitted'],  // Allow re-submission within 24 hours
       'Approved with Conditions': ['Approved', 'Rejected', 'Passed'],
       'Passed': [],
     };

@@ -96,10 +96,12 @@ export class ApplicationService {
     this.applicationUpdateSubject.next(applicationData);
   }
 
-  updateApplicationStatus(id: string, status: string): Observable<any> {
+  updateApplicationStatus(id: string, statusData: string | any): Observable<any> {
+    // Support both string (legacy) and object (with rejectionReason, etc.)
+    const body = typeof statusData === 'string' ? { status: statusData } : statusData;
     return this.http.put(
       `${this.apiUrl}/${id}/status`,
-      { status },
+      body,
       { headers: this.getHeaders() }
     );
   }

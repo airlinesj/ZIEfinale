@@ -177,7 +177,10 @@
     </div>
 
     <!-- Proof of Payment Upload Card -->
-    <div class="proof-of-payment-section">
+    <div class="proof-of-payment-section" [class.required-step]="paymentCompletedRequiresProof">
+      <div class="section-header" *ngIf="paymentCompletedRequiresProof">
+        <span class="badge">Step 2: Upload Proof of Payment</span>
+      </div>
       <h2>Upload Proof of Payment</h2>
         <p class="subtitle">Submit evidence of your payment for verification by the admin team</p>
         

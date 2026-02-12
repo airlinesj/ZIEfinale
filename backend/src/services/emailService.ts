@@ -1,214 +1,330 @@
 import nodemailer from 'nodemailer';
-import path from 'path';
-import fs from 'fs';
 
-// Check if SMTP is properly configured
-const isSMTPConfigured = (): boolean => {
-  const hasAllRequired = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
-  const hasNoPlaceholders = !process.env.SMTP_USER?.includes('your_') && !process.env.SMTP_PASS?.includes('your_');
-  return !!hasAllRequired && !!hasNoPlaceholders;
-};
-
-// Create transporter lazily - only when needed
-let transporter: any = null;
-
-const getTransporter = () => {
-  if (!transporter) {
-    console.log('🔧 [EMAIL SERVICE] Creating Nodemailer transporter...');
-    console.log('   SMTP_HOST:', process.env.SMTP_HOST);
-    console.log('   SMTP_PORT:', process.env.SMTP_PORT);
-    console.log('   SMTP_USER:', process.env.SMTP_USER);
-    
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  }
-  return transporter;
-};
-
-// Validate email format
-const isValidEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-export interface SponsorAppraisalRequest {
+interface SponsorAppraisalEmailData {
   applicantName: string;
   applicantEmail: string;
   sponsorName: string;
-  sponsorEmail: string; 
+  sponsorEmail: string;
   applicationId: string;
   sponsorToken: string;
 }
 
-export const sendSponsorAppraisalEmail = async (data: SponsorAppraisalRequest) => {
-  console.log('📧 [EMAIL SERVICE] Attempting to send sponsor appraisal email...');
-  console.log('   Sponsor Email:', data.sponsorEmail);
-  console.log('   Sponsor Name:', data.sponsorName);
-  console.log('   Applicant Name:', data.applicantName);
-  
-  // Validate SMTP configuration
-  if (!isSMTPConfigured()) {
-    console.error('⚠️ SMTP NOT CONFIGURED: Email credentials are placeholders. Check your .env file!');
-    console.error('   Required: SMTP_HOST, SMTP_USER (real email), SMTP_PASS (real password)');
-    console.error('   Current: SMTP_USER=' + process.env.SMTP_USER);
-    return { success: false, error: 'SMTP not configured' };
+interface EmailResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
+// Create transporter from environment variables
+function getEmailTransporter() {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+    console.warn('⚠️ SMTP configuration incomplete. Email service may not work.');
+    console.warn('Required env vars: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS');
   }
 
-  // Validate sponsor email
-  if (!isValidEmail(data.sponsorEmail)) {
-    console.error(`⚠️ INVALID EMAIL FORMAT: "${data.sponsorEmail}" is not a valid email address`);
-    return { success: false, error: 'Invalid email format' };
-  }
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: parseInt(smtpPort || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
 
-  const reviewUrl = `${process.env.FRONTEND_URL}/sponsor-review/${data.sponsorToken}`;
+  return transporter;
+}
 
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to: data.sponsorEmail,
-    subject: `ZIE Member Appraisal - ${data.applicantName}`,
-    html: `
-      <h2>Zimbabwe Institution of Engineers - Sponsorship Appraisal</h2>
-      <p>Dear ${data.sponsorName},</p>
-      <p>${data.applicantName} has listed you as a sponsor for their membership application to the Zimbabwe Institution of Engineers.</p>
-      <p>Please click the link below to provide your confidential appraisal:</p>
-      <a href="${reviewUrl}" style="display: inline-block; padding: 10px 20px; background-color: #004A59; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">
-        View Appraisal Form
-      </a>
-      <p style="color: #666; font-size: 12px;">Or copy this link: ${reviewUrl}</p>
-      <p>This appraisal is confidential and will not be shared with the applicant.</p>
-      <p>Best regards,<br/>Zimbabwe Institution of Engineers</p>
-    `,
-  };
-
+/**
+ * Send sponsor appraisal email to a sponsor
+ */
+export async function sendSponsorAppraisalEmail(data: SponsorAppraisalEmailData): Promise<EmailResult> {
   try {
-    const info = await getTransporter().sendMail(mailOptions);
-    console.log(`✓ Sponsor appraisal email sent successfully to ${data.sponsorEmail}`);
-    console.log(`  Message ID: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    const transporter = getEmailTransporter();
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+    // Build the sponsor appraisal link
+    const appraisalLink = `${frontendUrl}/sponsor-review?applicationId=${encodeURIComponent(data.applicationId)}&token=${encodeURIComponent(data.sponsorToken)}`;
+
+    // HTML email template
+    const htmlContent = `
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+            <h2 style="color: #2c3e50;">Sponsor Appraisal Request</h2>
+            
+            <p>Dear <strong>${data.sponsorName}</strong>,</p>
+            
+            <p>You have been nominated as a sponsor for the following applicant:</p>
+            
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p><strong>Applicant Name:</strong> ${data.applicantName}</p>
+              <p><strong>Applicant Email:</strong> ${data.applicantEmail}</p>
+              <p><strong>Application ID:</strong> ${data.applicationId}</p>
+            </div>
+            
+            <p>Please review the application and provide your appraisal by clicking the link below:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${appraisalLink}" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                View & Appraise Application
+              </a>
+            </div>
+            
+            <p style="font-size: 12px; color: #666;">
+              If the link doesn't work, copy and paste this URL in your browser:<br/>
+              ${appraisalLink}
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            
+            <p style="font-size: 12px; color: #666;">
+              This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Plain text version
+    const textContent = `
+Sponsor Appraisal Request
+
+Dear ${data.sponsorName},
+
+You have been nominated as a sponsor for the following applicant:
+
+Applicant Name: ${data.applicantName}
+Applicant Email: ${data.applicantEmail}
+Application ID: ${data.applicationId}
+
+Please review the application and provide your appraisal using the following link:
+${appraisalLink}
+
+This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+    `;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: data.sponsorEmail,
+      subject: `Sponsor Appraisal Request for ${data.applicantName}`,
+      text: textContent,
+      html: htmlContent,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log('✉️ Sponsor appraisal email sent:', {
+      messageId: info.messageId,
+      to: data.sponsorEmail,
+      applicationId: data.applicationId,
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+    };
   } catch (error: any) {
-    console.error(`✗ FAILED to send sponsor appraisal email to ${data.sponsorEmail}`);
-    console.error(`  Error: ${error?.message || error}`);
-    console.error('  Troubleshooting:');
-    console.error('    1. Check SMTP credentials in .env file');
-    console.error('    2. Verify email and password are correct (not placeholders)');
-    console.error('    3. For Gmail: Use App Password, not regular password');
-    console.error('    4. Check firewall/network allows SMTP connections');
-    // Don't throw - email is non-critical
-    return { success: false, error: error?.message };
+    console.error('❌ Error sending sponsor appraisal email:', error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
-};
+}
 
-export const sendApplicationConfirmationEmail = async (
+/**
+ * Generic email sender for other use cases
+ */
+export async function sendEmail(
+  to: string,
+  subject: string,
+  htmlContent: string,
+  textContent?: string
+): Promise<EmailResult> {
+  try {
+    const transporter = getEmailTransporter();
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to,
+      subject,
+      text: textContent || htmlContent.replace(/<[^>]*>/g, ''), // Strip HTML tags if no plain text provided
+      html: htmlContent,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log('✉️ Email sent:', {
+      messageId: info.messageId,
+      to,
+      subject,
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+    };
+  } catch (error: any) {
+    console.error('❌ Error sending email:', error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Send interview notification email
+ */
+export async function sendInterviewNotificationEmail(
   applicantEmail: string,
   applicantName: string,
+  interviewDetails: string
+): Promise<EmailResult> {
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+          <h2 style="color: #2c3e50;">Interview Notification</h2>
+          
+          <p>Dear <strong>${applicantName}</strong>,</p>
+          
+          <p>Congratulations! You have been invited for an interview.</p>
+          
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p>${interviewDetails}</p>
+          </div>
+          
+          <p>Please ensure you arrive on time and bring all required documents.</p>
+          
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          
+          <p style="font-size: 12px; color: #666;">
+            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail(applicantEmail, 'Interview Notification', htmlContent);
+}
+
+/**
+ * Send application confirmation email
+ */
+export async function sendApplicationConfirmationEmail(
+  email: string,
+  name: string,
   applicationId: string
-) => {
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to: applicantEmail,
-    subject: 'ZIE Membership Application Received',
-    html: `
-      <h2>Application Received</h2>
-      <p>Dear ${applicantName},</p>
-      <p>Your membership application to the Zimbabwe Institution of Engineers has been received.</p>
-      <p>Application ID: <strong>${applicationId}</strong></p>
-      <p>We will send you updates on the status of your application. Your sponsors have been notified and will provide their appraisals shortly.</p>
-      <p>Best regards,<br/>Zimbabwe Institution of Engineers</p>
-    `,
-  };
+): Promise<EmailResult> {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
 
-  try {
-    await getTransporter().sendMail(mailOptions);
-    console.log(`Confirmation email sent to ${applicantEmail}`);
-  } catch (error) {
-    console.error('Error sending confirmation email:', error);
-    // Log error but don't throw - email is non-critical
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+          <h2 style="color: #2c3e50;">Application Received</h2>
+          
+          <p>Dear <strong>${name}</strong>,</p>
+          
+          <p>Thank you for submitting your membership application to ZIE.</p>
+          
+          <p>Your application has been received and is currently being reviewed. Below are your application details:</p>
+          
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p><strong>Application ID:</strong> ${applicationId}</p>
+          </div>
+          
+          <p>You can track the progress of your application by logging into your portal:</p>
+          
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${frontendUrl}/dashboard" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              View My Application
+            </a>
+          </div>
+          
+          <p>If you have any questions, please contact us at support@zie.org.zw</p>
+          
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          
+          <p style="font-size: 12px; color: #666;">
+            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail(email, 'Application Confirmation - ZIE', htmlContent);
+}
+
+/**
+ * Send status update email
+ */
+export async function sendStatusUpdateEmail(
+  email: string,
+  name: string,
+  status: string,
+  customMessage?: string
+): Promise<EmailResult> {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+  // Determine status color and message
+  let statusColor = '#3498db';
+  let statusMessage = customMessage || `Your application status has been updated to: <strong>${status}</strong>`;
+
+  if (!customMessage) {
+    if (status === 'Approved' || status === 'Passed' || status === 'Interview Passed') {
+      statusColor = '#27ae60';
+      statusMessage = `Congratulations! Your application status has been updated to: <strong style="color: ${statusColor};">${status}</strong>`;
+    } else if (status === 'Rejected' || status === 'Interview Failed') {
+      statusColor = '#e74c3c';
+      statusMessage = `Your application status has been updated to: <strong style="color: ${statusColor};">${status}</strong>`;
+    } else if (status === 'Under Review' || status === 'Pending') {
+      statusColor = '#f39c12';
+    }
   }
-};
 
-export const sendInterviewNotificationEmail = async (
-  applicantEmail: string,
-  applicantName: string,
-  message: string,
-  interviewDetails?: {
-    date?: string;
-    time?: string;
-    location?: string;
-    interviewerName?: string;
-  }
-) => {
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to: applicantEmail,
-    subject: 'Interview Notification - ZIE Membership Application',
-    html: `
-      <h2>Interview Notification</h2>
-      <p>Dear ${applicantName},</p>
-      <p>We are pleased to inform you that you have been invited for an interview as part of your membership application process.</p>
-      <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #004A59; margin: 20px 0;">
-        <p><strong>${message}</strong></p>
-        ${interviewDetails?.date ? `<p><strong>Date:</strong> ${interviewDetails.date}</p>` : ''}
-        ${interviewDetails?.time ? `<p><strong>Time:</strong> ${interviewDetails.time}</p>` : ''}
-        ${interviewDetails?.location ? `<p><strong>Location:</strong> ${interviewDetails.location}</p>` : ''}
-        ${interviewDetails?.interviewerName ? `<p><strong>Interviewer:</strong> ${interviewDetails.interviewerName}</p>` : ''}
-      </div>
-      <p>Please confirm your availability by logging into your dashboard or replying to this email.</p>
-      <p>Best regards,<br/>Zimbabwe Institution of Engineers</p>
-    `,
-  };
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+          <h2 style="color: #2c3e50;">Application Status Update</h2>
+          
+          <p>Dear <strong>${name}</strong>,</p>
+          
+          <p>${statusMessage}</p>
+          
+          <div style="background-color: ${statusColor}; color: white; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0; font-size: 18px;">Status: <strong>${status}</strong></p>
+          </div>
+          
+          <p>Please log in to your account to view more details:</p>
+          
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${frontendUrl}/dashboard" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              View Application Details
+            </a>
+          </div>
+          
+          <p>If you have any questions, please contact us at support@zie.org.zw</p>
+          
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          
+          <p style="font-size: 12px; color: #666;">
+            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
 
-  try {
-    await getTransporter().sendMail(mailOptions);
-    console.log(`Interview notification sent to ${applicantEmail}`);
-  } catch (error) {
-    console.error('Error sending interview notification:', error);
-  }
-};
-
-export const sendStatusUpdateEmail = async (
-  applicantEmail: string,
-  applicantName: string,
-  newStatus: string,
-  details?: string
-) => {
-  const statusMessages: { [key: string]: string } = {
-    'Under Review': 'Your application is currently under review by our team.',
-    'Interview Required': 'Your application has progressed and an interview has been scheduled.',
-    'Approved': 'Congratulations! Your membership application has been approved.',
-    'Passed': 'Congratulations! You have passed your interview and have been registered as a ZIE Professional Member.',
-    'Rejected': 'Unfortunately, your application was not approved at this time.',
-    'Approved with Conditions': 'Your application has been approved with certain conditions that need to be fulfilled.',
-  };
-
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to: applicantEmail,
-    subject: `Application Status Update - ${newStatus}`,
-    html: `
-      <h2>Application Status Update</h2>
-      <p>Dear ${applicantName},</p>
-      <p>We wanted to inform you that the status of your membership application has been updated.</p>
-      <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #B99532; margin: 20px 0;">
-        <p><strong>New Status:</strong> ${newStatus}</p>
-        <p>${statusMessages[newStatus] || ''}</p>
-        ${details ? `<p><strong>Details:</strong> ${details}</p>` : ''}
-      </div>
-      <p>You can log into your dashboard to view more details about your application.</p>
-      <p>Best regards,<br/>Zimbabwe Institution of Engineers</p>
-    `,
-  };
-
-  try {
-    await getTransporter().sendMail(mailOptions);
-    console.log(`Status update email sent to ${applicantEmail}`);
-  } catch (error) {
-    console.error('Error sending status update email:', error);
-  }
-};
+  return sendEmail(email, `Application Status Update: ${status}`, htmlContent);
+}

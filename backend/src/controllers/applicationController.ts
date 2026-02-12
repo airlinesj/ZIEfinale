@@ -257,7 +257,7 @@ export const getApplicationById = async (req: AuthRequest, res: Response) => {
 export const updateApplicationStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, rejectionReason } = req.body;
 
     const application = await Application.findById(id);
     
@@ -271,20 +271,54 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response) =
         message: `Cannot transition from ${application.status} to ${status}`,
         reason: status === 'Approved' && !AdminVerificationService.canApprove(application) 
           ? 'All checklist items must be verified before approval'
+          : application.status === 'Rejected' && status === 'Submitted'
+          ? 'The 24-hour editing window for this application has expired'
           : 'Invalid status transition'
       });
     }
 
     const oldStatus = application.status;
     application.status = status;
+
+    // If rejecting, set rejection info with 24-hour edit window
+    if (status === 'Rejected') {
+      const now = new Date();
+      const allowEditUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+      
+      // Get admin info from auth
+      const admin = await (await require('mongoose').model('User')).findById(req.userId);
+      
+      application.rejectionInfo = {
+        rejectionTimestamp: now,
+        rejectionReason: rejectionReason || 'Application not meeting requirements',
+        rejectedBy: req.userId as any,
+        rejectedByEmail: admin?.email || '',
+        rejectedByName: admin?.username || 'Admin',
+        allowEditUntil: allowEditUntil,
+      };
+    }
+
+    // If re-submitting after rejection, clear rejection info
+    if (oldStatus === 'Rejected' && status === 'Submitted') {
+      application.rejectionInfo = undefined;
+    }
+
     await application.save();
 
     // Send status update email to applicant
     try {
+      let customMessage;
+      if (status === 'Rejected') {
+        customMessage = `Your application has been rejected. Reason: ${application.rejectionInfo?.rejectionReason}. You have 24 hours to make corrections and re-submit your application.`;
+      } else if (oldStatus === 'Rejected' && status === 'Submitted') {
+        customMessage = 'Your updated application has been received and will be reviewed by the admin team.';
+      }
+      
       await sendStatusUpdateEmail(
         application.personalParticulars.email,
         `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
-        status
+        status,
+        customMessage
       );
     } catch (emailError) {
       console.error('Failed to send status update email:', emailError);
