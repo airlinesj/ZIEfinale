@@ -320,6 +320,10 @@ export class LoginComponent implements OnInit {
     });
   }
 
+
+  goBack(): void {
+    this.router.navigate(['/']);
+  }
   toggleTab(tab: string): void {
     this.isApplicant = tab === 'applicant';
     this.errorMessage = '';

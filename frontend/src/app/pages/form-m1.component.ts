@@ -845,19 +845,129 @@ export class FormM1Component implements OnInit {
         // If a new user logged in, load their saved data (if any)
         if (newUserId) {
           setTimeout(() => {
-            this.loadFormData();
+            this.loadApplicationsAndFormData();
           }, 100);
         }
       }
     });
     
-    // Initial load
-    this.loadFormData();
+    // Initial load - check for rejected applications
+    this.loadApplicationsAndFormData();
     
     // Auto-save form data every 5 seconds
     setInterval(() => {
       this.saveFormData();
     }, 5000);
+  }
+
+  /**
+   * Load user's applications and populate form if rejection is within 48 hours
+   */
+  loadApplicationsAndFormData(): void {
+    this.applicationService.getApplicationByUser().subscribe({
+      next: (applications: any[]) => {
+        // Check for rejected applications within 48-hour window
+        const rejectedApp = applications.find(app => 
+          app.status === 'Rejected' && 
+          app.rejectionInfo?.allowEditUntil &&
+          new Date(app.rejectionInfo.allowEditUntil) > new Date()
+        );
+
+        if (rejectedApp) {
+          // Pre-populate form with rejected application data
+          this.loadApplicationDataToForm(rejectedApp);
+          
+          // Show notification about rejection reason and edit window
+          const hoursRemaining = Math.floor(
+            (new Date(rejectedApp.rejectionInfo.allowEditUntil).getTime() - new Date().getTime()) / (1000 * 60 * 60)
+          );
+          alert(
+            `Your application was rejected.\n\nReason: ${rejectedApp.rejectionInfo.rejectionReason}\n\nYou have ${hoursRemaining} hours remaining to make corrections and resubmit.`
+          );
+        } else {
+          // No rejected app or 48 hours have passed - load from localStorage
+          this.loadFormData();
+        }
+      },
+      error: (error) => {
+        console.error('Error loading applications:', error);
+        // Fallback to localStorage
+        this.loadFormData();
+      }
+    });
+  }
+
+  /**
+   * Load application data from server into form
+   */
+  loadApplicationDataToForm(application: any): void {
+    try {
+      // Personal Particulars
+      if (application.personalParticulars) {
+        this.personalParticularsForm.patchValue(application.personalParticulars);
+      }
+
+      // Education
+      if (application.education && application.education.length > 0) {
+        const educationArray = this.educationForm.get('education') as FormArray;
+        // Clear existing
+        while (educationArray.length > 0) {
+          educationArray.removeAt(0);
+        }
+        // Add education entries
+        application.education.forEach((edu: any) => {
+          const group = this.createEducationGroup();
+          group.patchValue(edu);
+          educationArray.push(group);
+        });
+      }
+
+      // Experience
+      if (application.experience && application.experience.length > 0) {
+        const experienceArray = this.experienceForm.get('experience') as FormArray;
+        // Clear existing
+        while (experienceArray.length > 0) {
+          experienceArray.removeAt(0);
+        }
+        // Add experience entries
+        application.experience.forEach((exp: any) => {
+          const group = this.createExperienceGroup();
+          group.patchValue(exp);
+          experienceArray.push(group);
+        });
+      }
+
+      // Grade
+      if (application.chosenGrade) {
+        this.gradeForm.patchValue({
+          grade: application.chosenGrade,
+          specialistDivision: application.chosenSpecialistDivision
+        });
+        this.onGradeChange();
+      }
+
+      // Sponsors
+      if (application.sponsors && application.sponsors.length > 0) {
+        const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
+        // Clear existing
+        while (sponsorsArray.length > 0) {
+          sponsorsArray.removeAt(0);
+        }
+        // Add sponsor entries
+        application.sponsors.forEach((sponsor: any) => {
+          const group = this.createSponsorGroup();
+          group.patchValue({
+            name: sponsor.sponsorName,
+            email: sponsor.sponsorEmail
+          });
+          sponsorsArray.push(group);
+        });
+      }
+
+      console.log('Application data loaded from rejected submission');
+    } catch (error) {
+      console.error('Error loading application data to form:', error);
+    }
   }
 
   /**

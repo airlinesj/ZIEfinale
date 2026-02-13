@@ -483,7 +483,7 @@ import { environment } from '../../environments/environment';
                     class="form-input"
                     placeholder="Please provide a reason for the rejection..."
                     rows="4"></textarea>
-                  <small>Applicant will have 24 hours to revise and re-submit their application</small>
+                  <small>Applicant will have 48 hours to revise and re-submit their application</small>
                 </div>
 
                 <button (click)="updateApplicationStatus()" class="btn-primary">Update Status</button>

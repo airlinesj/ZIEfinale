@@ -272,7 +272,7 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response) =
         reason: status === 'Approved' && !AdminVerificationService.canApprove(application) 
           ? 'All checklist items must be verified before approval'
           : application.status === 'Rejected' && status === 'Submitted'
-          ? 'The 24-hour editing window for this application has expired'
+          ? 'The 48-hour editing window for this application has expired'
           : 'Invalid status transition'
       });
     }
@@ -280,10 +280,10 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response) =
     const oldStatus = application.status;
     application.status = status;
 
-    // If rejecting, set rejection info with 24-hour edit window
+    // If rejecting, set rejection info with 48-hour edit window
     if (status === 'Rejected') {
       const now = new Date();
-      const allowEditUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+      const allowEditUntil = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48 hours from now
       
       // Get admin info from auth
       const admin = await (await require('mongoose').model('User')).findById(req.userId);
@@ -309,7 +309,7 @@ export const updateApplicationStatus = async (req: AuthRequest, res: Response) =
     try {
       let customMessage;
       if (status === 'Rejected') {
-        customMessage = `Your application has been rejected. Reason: ${application.rejectionInfo?.rejectionReason}. You have 24 hours to make corrections and re-submit your application.`;
+        customMessage = `Your application has been rejected. Reason: ${application.rejectionInfo?.rejectionReason}. You have 48 hours to make corrections and re-submit your application.`;
       } else if (oldStatus === 'Rejected' && status === 'Submitted') {
         customMessage = 'Your updated application has been received and will be reviewed by the admin team.';
       }

@@ -79,6 +79,10 @@ export class ApplicationService {
     return this.http.get<any[]>(this.apiUrl, { headers: this.getHeaders() });
   }
 
+  getApplicationByUser(): Observable<any[]> {
+    return this.getApplications(); // Same endpoint - backend filters by userId
+  }
+
   getApplicationById(id: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/${id}`, { headers: this.getHeaders() });
   }

@@ -42,7 +42,7 @@ export interface RejectionInfo {
   rejectedBy: mongoose.Types.ObjectId;
   rejectedByEmail: string;
   rejectedByName: string;
-  allowEditUntil: Date;  // 24 hours from rejection
+  allowEditUntil: Date;  // 48 hours from rejection
 }
 
 export interface ManualGrade {
@@ -125,7 +125,7 @@ export interface IApplication extends Document {
   manualGrade?: ManualGrade;         // Admin manual grading
   adminApprovals: AdminApproval[];   // Array of approvals from different admins (need 3)
   interviewNotification?: InterviewNotification;  // Interview notification from admin
-  rejectionInfo?: RejectionInfo;     // Track rejection with 24-hour edit window
+  rejectionInfo?: RejectionInfo;     // Track rejection with 48-hour edit window
   sponsors: SponsorAppraisal[];
   adminChecklist: AdminChecklist;
   adminNotes: string;
@@ -303,7 +303,7 @@ const applicationSchema = new Schema<IApplication>(
       },
       rejectedByEmail: { type: String },
       rejectedByName: { type: String },
-      allowEditUntil: { type: Date },  // 24 hours from rejection
+      allowEditUntil: { type: Date },  // 48 hours from rejection
     },
     adminNotes: { type: String, default: '' },
     confidentialFlag: { type: Boolean, default: false },
