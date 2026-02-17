@@ -397,7 +397,7 @@ export class ApplicationsListComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    // Use logoutAndNavigate to properly clear browser history and navigate to landing page
+    this.authService.logoutAndNavigate();
   }
 }

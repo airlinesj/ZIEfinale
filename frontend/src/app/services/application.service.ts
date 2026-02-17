@@ -75,6 +75,16 @@ export class ApplicationService {
     return this.http.post(this.apiUrl, formData, { headers });
   }
 
+  submitExpatriateApplication(formData: FormData): Observable<any> {
+    const token = localStorage.getItem('token');
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${token}`,
+    });
+    // Note: Do NOT set Content-Type header when using FormData
+    // The browser will set it automatically with the correct boundary
+    return this.http.post(`${this.apiUrl}/expatriate`, formData, { headers });
+  }
+
   getApplications(): Observable<any[]> {
     return this.http.get<any[]>(this.apiUrl, { headers: this.getHeaders() });
   }
@@ -188,4 +198,19 @@ export class ApplicationService {
       { headers: this.getHeaders() }
     );
   }
-}
+
+  verifyRefereeResponses(applicationId: string): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${applicationId}/verify-referee-responses`,
+      { refereeResponsesVerified: true, refereeResponsesVerifiedAt: new Date() },
+      { headers: this.getHeaders() }
+    );
+  }
+
+  updateApplication(applicationId: string, data: any): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${applicationId}`,
+      data,
+      { headers: this.getHeaders() }
+    );
+  }}

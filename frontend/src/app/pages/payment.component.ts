@@ -70,6 +70,9 @@ export class PaymentComponent implements OnInit {
               verifiedAt: latestApp.paymentProof.verifiedAt
             };
           }
+        } else {
+          this.errorMessage = 'No application found. Please submit an application first before making a payment.';
+          console.warn('Payment page - No applications found for user');
         }
       },
       error: (error) => {

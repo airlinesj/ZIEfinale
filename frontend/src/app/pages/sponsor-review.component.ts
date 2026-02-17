@@ -1,17 +1,19 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { SponsorService } from '../services/sponsor.service';
+import { RefereeService } from '../services/sponsor.service';
 
 @Component({
-  selector: 'app-sponsor-review',
+  selector: 'app-referee-review',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, HttpClientModule, FormsModule, ReactiveFormsModule],
+  providers: [RefereeService],
   template: `
-    <div class="sponsor-review-container">
+    <div class="referee-review-container">
       <div class="review-card card">
-        <h1>Confidential Sponsorship Appraisal</h1>
+        <h1>Confidential Referee Appraisal</h1>
 
         <div class="applicant-info" *ngIf="applicantInfo">
           <p>
@@ -129,7 +131,7 @@ import { SponsorService } from '../services/sponsor.service';
     </div>
   `,
   styles: [`
-    .sponsor-review-container {
+    .referee-review-container {
       display: flex;
       justify-content: center;
       align-items: center;
@@ -269,7 +271,7 @@ import { SponsorService } from '../services/sponsor.service';
     }
   `]
 })
-export class SponsorReviewComponent implements OnInit {
+export class RefereeReviewComponent implements OnInit {
   appraisalForm!: FormGroup;
   applicantInfo: any = null;
   isSubmitting = false;
@@ -280,7 +282,7 @@ export class SponsorReviewComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private sponsorService: SponsorService,
+    private refereeService: RefereeService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -312,7 +314,7 @@ export class SponsorReviewComponent implements OnInit {
   }
 
   loadAppraisalInfo(): void {
-    this.sponsorService.getSponsorAppraisal(this.token).subscribe({
+    this.refereeService.getRefereeAppraisal(this.token).subscribe({
       next: (response) => {
         this.applicantInfo = response;
         this.isLoading = false;
@@ -333,7 +335,7 @@ export class SponsorReviewComponent implements OnInit {
     this.isSubmitting = true;
     this.errorMessage = '';
 
-    this.sponsorService.submitAppraisal(this.token, this.appraisalForm.value).subscribe({
+    this.refereeService.submitAppraisal(this.token, this.appraisalForm.value).subscribe({
       next: (response) => {
         this.isSubmitting = false;
         this.successMessage = 'Thank you! Your appraisal has been submitted successfully.';

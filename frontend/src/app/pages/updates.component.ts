@@ -17,6 +17,18 @@ import { interval, Subscription } from 'rxjs';
       </div>
 
       <div class="updates-content">
+        <!-- Error Message -->
+        <div class="error-message" *ngIf="error">
+          <p>{{ error }}</p>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" *ngIf="loading">
+          <p>Loading your application updates...</p>
+        </div>
+
+        <!-- Application Content (only show if loaded successfully) -->
+        <div *ngIf="!loading && !error">
         <!-- Manual Grade Card -->
         <div class="update-card" *ngIf="application?.manualGrade">
           <div class="card-icon">📊</div>
@@ -129,6 +141,7 @@ import { interval, Subscription } from 'rxjs';
         <div class="no-updates" *ngIf="!application?.manualGrade && !application?.interviewNotification && (!application?.adminApprovals || application.adminApprovals.length === 0)">
           <p>No updates yet. Admin will review your application and provide updates here.</p>
         </div>
+        </div>
       </div>
 
       <div class="button-group">
@@ -138,9 +151,12 @@ import { interval, Subscription } from 'rxjs';
   `,
   styles: [`
     .updates-container {
+      width: 100%;
       max-width: 1000px;
       margin: 0 auto;
       padding: 40px 20px;
+      box-sizing: border-box;
+      transition: all 0.3s ease;
     }
 
     .updates-header {
@@ -149,10 +165,10 @@ import { interval, Subscription } from 'rxjs';
     }
 
     .updates-header h1 {
-      font-size: 42px;
+      font-size: 40px;
       font-weight: 700;
       color: #004A59;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
     }
 
     .updates-subtitle {
@@ -160,19 +176,38 @@ import { interval, Subscription } from 'rxjs';
       color: #666;
     }
 
+    .error-message {
+      background-color: #ffebee;
+      border: 1px solid #ef5350;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #c62828;
+      font-weight: 500;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-size: 16px;
+    }
+
     .updates-content {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 30px;
+      gap: 80px;
       margin-bottom: 40px;
+      transition: gap 0.3s ease;
     }
 
     .update-card {
       background-color: #FFFFFF;
       border: 2.5px solid #004A59;
       border-radius: 8px;
-      padding: 30px;
+      padding: 20px;
       transition: all 0.3s ease;
+      box-sizing: border-box;
     }
 
     .update-card:hover {
@@ -181,10 +216,10 @@ import { interval, Subscription } from 'rxjs';
     }
 
     .update-card h2 {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 600;
       color: #004A59;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -230,6 +265,7 @@ import { interval, Subscription } from 'rxjs';
     .update-item p.value {
       margin: 0;
       white-space: pre-wrap;
+      word-break: break-word;
     }
 
     .info-text {
@@ -401,9 +437,11 @@ import { interval, Subscription } from 'rxjs';
       box-shadow: 0 6px 16px rgba(0, 74, 89, 0.3);
     }
 
-    @media (max-width: 768px) {
+    /* Responsive for when sidebar is expanded on larger screens */
+    @media (max-width: 1200px) {
       .updates-container {
-        padding: 20px 15px;
+        max-width: 100%;
+        padding: 30px 20px;
       }
 
       .updates-header h1 {
@@ -411,7 +449,80 @@ import { interval, Subscription } from 'rxjs';
       }
 
       .update-card {
-        padding: 20px;
+        padding: 25px;
+      }
+
+      .updates-content {
+        gap: 20px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .updates-container {
+        max-width: 100%;
+        padding: 20px 12px;
+      }
+
+      .updates-header h1 {
+        font-size: 28px;
+        margin-bottom: 12px;
+      }
+
+      .updates-subtitle {
+        font-size: 14px;
+      }
+
+      .update-card {
+        padding: 18px;
+      }
+
+      .update-card h2 {
+        font-size: 18px;
+        margin-bottom: 15px;
+      }
+
+      .card-icon {
+        font-size: 24px;
+      }
+
+      .updates-content {
+        gap: 15px;
+      }
+
+      .update-item label {
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+
+      .update-item .value {
+        font-size: 14px;
+        padding: 6px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .updates-container {
+        padding: 15px 10px;
+      }
+
+      .updates-header h1 {
+        font-size: 22px;
+      }
+
+      .updates-subtitle {
+        font-size: 12px;
+      }
+
+      .update-card {
+        padding: 15px;
+      }
+
+      .update-card h2 {
+        font-size: 16px;
+      }
+
+      .card-icon {
+        font-size: 20px;
       }
     }
   `]
@@ -447,7 +558,11 @@ export class UpdatesComponent implements OnInit, OnDestroy {
     this.applicationService.getApplications().subscribe({
       next: (applications: any) => {
         if (applications && applications.length > 0) {
-          this.application = applications[0]; // Get the first (most recent) application
+          this.application = applications[applications.length - 1];
+          console.log('✓ Updates - Application loaded:', this.application?._id);
+        } else {
+          console.warn('⚠ Updates - No applications found for user');
+          this.error = 'No application found. Please submit an application first to view updates.';
         }
         this.loading = false;
       },

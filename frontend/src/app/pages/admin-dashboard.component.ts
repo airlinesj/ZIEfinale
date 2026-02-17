@@ -4,11 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { ApplicationStatsComponent, MembershipGradeStats } from '../components/application-stats.component';
+import { RefereeResponsesComponent } from '../components/referee-responses.component';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, ApplicationStatsComponent, RefereeResponsesComponent],
   template: `
     <div class="dashboard-wrapper">
       <div class="header-section">
@@ -46,7 +48,7 @@ import { AuthService } from '../services/auth.service';
           <!-- Current Applications Card -->
           <div class="analytics-card">
             <div class="card-header">
-              <h2>Current Applications (Latest 6)</h2>
+              <h2>Latest Applicants</h2>
               <span class="count-badge">{{ getNewApplicationsCount() }}</span>
             </div>
             <div class="card-content">
@@ -65,28 +67,16 @@ import { AuthService } from '../services/auth.service';
             </div>
           </div>
 
-          <!-- Membership Categories Analytics Card -->
-          <div class="analytics-card chart-card">
-            <div class="card-header">
-              <h2>Membership Categories (Last 7 Days)</h2>
-            </div>
-            <div class="card-content">
-              <div class="chart-container">
-                <div class="chart-bars">
-                  <div class="bar-item" *ngFor="let category of getMembershipCategoriesWeek()">
-                    <div class="bar-wrapper">
-                      <div class="bar-label">{{ category.grade }}</div>
-                      <div class="bar-chart">
-                        <div class="bar" [style.height.%]="getBarHeight(category.count)"></div>
-                        <div class="bar-value">{{ category.count }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+
         </div>
+
+        <!-- Application Stats by Membership Grade -->
+        <div class="stats-by-grade-section">
+          <app-application-stats [membershipGrades]="getApplicationStatsByGrade()"></app-application-stats>
+        </div>
+
+        <!-- Referee Responses Section -->
+        <app-referee-responses></app-referee-responses>
       </div>
     </div>
   `,
@@ -105,52 +95,52 @@ import { AuthService } from '../services/auth.service';
       justify-content: space-between;
       align-items: center;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
 
-      h1 {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-      }
+    .header-section h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
 
-      .header-buttons {
-        display: flex;
-        gap: 15px;
-      }
+    .header-buttons {
+      display: flex;
+      gap: 15px;
+    }
 
-      .btn-view-details,
-      .btn-logout {
-        border: 2px solid white;
-        padding: 10px 20px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: 600;
-        font-size: 14px;
-        transition: all 0.3s ease;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
+    .btn-view-details,
+    .btn-logout {
+      border: 2px solid white;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-      .btn-view-details {
-        background-color: #0088cc;
-        color: white;
+    .btn-view-details {
+      background-color: #0088cc;
+      color: white;
+    }
 
-        &:hover {
-          background-color: #0066aa;
-          transform: translateY(-2px);
-        }
-      }
+    .btn-view-details:hover {
+      background-color: #0066aa;
+      transform: translateY(-2px);
+    }
 
-      .btn-logout {
-        background-color: white;
-        color: #004A59;
+    .btn-logout {
+      background-color: white;
+      color: #004A59;
+    }
 
-        &:hover {
-          background-color: #f0f0f0;
-          transform: translateY(-2px);
-        }
-      }
+    .btn-logout:hover {
+      background-color: #f0f0f0;
+      transform: translateY(-2px);
     }
 
     .dashboard-content {
@@ -173,26 +163,26 @@ import { AuthService } from '../services/auth.service';
       border-radius: 8px;
       text-align: center;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
 
-      h3 {
-        color: #004A59;
-        margin: 0 0 10px 0;
-        font-size: 14px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
+    .stat-card h3 {
+      color: #004A59;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
 
-      .stat-value {
-        color: #B99532;
-        font-size: 36px;
-        font-weight: 700;
-        margin: 0;
-      }
+    .stat-card .stat-value {
+      color: #B99532;
+      font-size: 36px;
+      font-weight: 700;
+      margin: 0;
     }
 
     .analytics-section {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 20px;
     }
 
@@ -203,152 +193,76 @@ import { AuthService } from '../services/auth.service';
       padding: 0;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       overflow: hidden;
-
-      .card-header {
-        background-color: #004A59;
-        color: white;
-        padding: 20px;
-        border-bottom: 2px solid #003347;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 700;
-        }
-
-        .count-badge {
-          background-color: #B99532;
-          color: white;
-          padding: 8px 16px;
-          border-radius: 20px;
-          font-size: 18px;
-          font-weight: 700;
-        }
-      }
-
-      .card-content {
-        padding: 20px;
-      }
     }
 
-    .new-apps-list {
-      .apps-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 15px;
-
-        .app-item {
-          background-color: #f9f9f9;
-          border: 2px solid #B99532;
-          border-radius: 6px;
-          padding: 12px;
-          text-align: center;
-
-          .app-name {
-            font-weight: 600;
-            color: #004A59;
-            font-size: 13px;
-            margin-bottom: 8px;
-            word-break: break-word;
-          }
-
-          .app-grade {
-            color: #B99532;
-            font-weight: 600;
-            font-size: 12px;
-            margin-bottom: 6px;
-          }
-
-          .app-date {
-            color: #999;
-            font-size: 11px;
-          }
-        }
-      }
-
-      .no-data {
-        text-align: center;
-        padding: 30px 20px;
-        color: #999;
-        font-size: 14px;
-      }
-    }
-
-    .chart-card {
-      .card-content {
-        padding: 25px;
-      }
-    }
-
-    .chart-container {
-      height: 100%;
+    .analytics-card .card-header {
+      background-color: #004A59;
+      color: white;
+      padding: 20px;
+      border-bottom: 2px solid #003347;
       display: flex;
-      align-items: flex-end;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-      .chart-bars {
-        display: flex;
-        gap: 20px;
-        width: 100%;
-        height: 200px;
-        align-items: flex-end;
-        justify-content: space-around;
+    .analytics-card .card-header h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
 
-        .bar-item {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
+    .analytics-card .card-header .count-badge {
+      background-color: #B99532;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 18px;
+      font-weight: 700;
+    }
 
-          .bar-wrapper {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
+    .analytics-card .card-content {
+      padding: 20px;
+    }
 
-            .bar-label {
-              text-align: center;
-              font-weight: 600;
-              color: #004A59;
-              font-size: 12px;
-              width: 100%;
-              word-wrap: break-word;
-            }
+    .new-apps-list .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 15px;
+    }
 
-            .bar-chart {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              width: 100%;
-              gap: 8px;
+    .new-apps-list .apps-grid .app-item {
+      background-color: #f9f9f9;
+      border: 2px solid #B99532;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
 
-              .bar {
-                background-color: #B99532;
-                width: 50px;
-                border-radius: 6px 6px 0 0;
-                min-height: 20px;
-                transition: all 0.3s ease;
-                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(185, 149, 50, 0.2);
+    .new-apps-list .apps-grid .app-item .app-name {
+      font-weight: 600;
+      color: #004A59;
+      font-size: 13px;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
 
-                &:hover {
-                  background-color: #d4a844;
-                  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 6px 16px rgba(185, 149, 50, 0.35);
-                  transform: translateY(-4px);
-                }
-              }
+    .new-apps-list .apps-grid .app-item .app-grade {
+      color: #B99532;
+      font-weight: 600;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
 
-              .bar-value {
-                font-weight: 700;
-                color: #B99532;
-                font-size: 14px;
-              }
-            }
-          }
-        }
-      }
+    .new-apps-list .apps-grid .app-item .app-date {
+      color: #999;
+      font-size: 11px;
+    }
+
+    .new-apps-list .no-data {
+      text-align: center;
+      padding: 30px 20px;
+      color: #999;
+      font-size: 14px;
     }
 
     .no-results {
@@ -367,53 +281,26 @@ import { AuthService } from '../services/auth.service';
         flex-direction: column;
         gap: 15px;
         text-align: center;
-
-        h1 {
-          font-size: 20px;
-        }
-
-        .header-buttons {
-          width: 100%;
-          justify-content: center;
-          gap: 10px;
-
-          button {
-            flex: 1;
-          }
-        }
       }
 
-      .chart-bars {
-        flex-direction: column;
-        height: auto !important;
-        gap: 15px;
+      .header-section h1 {
+        font-size: 20px;
+      }
 
-        .bar-item {
-          width: 100%;
+      .header-section .header-buttons {
+        width: 100%;
+        justify-content: center;
+        gap: 10px;
+      }
 
-          .bar-wrapper {
-            flex-direction: row;
-            justify-content: space-between;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
+      .header-section .header-buttons button {
+        flex: 1;
+      }
 
-            .bar-label {
-              flex: 1;
-              text-align: left;
-            }
-
-            .bar-chart {
-              flex-direction: row;
-              gap: 10px;
-
-              .bar {
-                width: 80px;
-                height: 30px !important;
-              }
-            }
-          }
-        }
+      .stats-by-grade-section {
+        margin-top: 40px;
+        display: grid;
+        grid-template-columns: 1fr;
       }
     }
   `]
@@ -457,33 +344,47 @@ export class AdminDashboardComponent implements OnInit {
     return this.getNewApplications().length;
   }
 
-  getMembershipCategoriesWeek(): any[] {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    const applicationsThisWeek = this.applications.filter((app) => {
-      const appDate = new Date(app.createdAt);
-      return appDate >= sevenDaysAgo;
-    });
+  getApplicationStatsByGrade(): MembershipGradeStats[] {
+    // Group all applications by membership grade and status
+    const gradeStats: { [key: string]: { [key: string]: number } } = {};
 
-    const categories: { [key: string]: number } = {};
-    applicationsThisWeek.forEach((app) => {
+    this.applications.forEach((app) => {
       const grade = app.chosenGrade || 'Unknown';
-      categories[grade] = (categories[grade] || 0) + 1;
+      const status = app.status || 'Submitted';
+
+      if (!gradeStats[grade]) {
+        gradeStats[grade] = {
+          pending: 0,
+          inReview: 0,
+          approved: 0,
+          rejected: 0,
+        };
+      }
+
+      // Map application status to our category
+      if (status === 'Submitted') {
+        gradeStats[grade]['pending'] += 1;
+      } else if (status === 'Under Review') {
+        gradeStats[grade]['inReview'] += 1;
+      } else if (status === 'Approved') {
+        gradeStats[grade]['approved'] += 1;
+      } else if (status === 'Rejected') {
+        gradeStats[grade]['rejected'] += 1;
+      }
     });
 
-    return Object.entries(categories)
-      .map(([grade, count]) => ({ grade, count }))
-      .sort((a, b) => b.count - a.count);
+    // Convert to array format
+    return Object.entries(gradeStats)
+      .map(([name, counts]) => ({
+        name,
+        pending: counts['pending'],
+        inReview: counts['inReview'],
+        approved: counts['approved'],
+        rejected: counts['rejected'],
+      }))
+      .sort((a, b) => (b.pending + b.inReview + b.approved + b.rejected) - (a.pending + a.inReview + a.approved + a.rejected));
   }
 
-  getBarHeight(count: number): number {
-    const maxCount = Math.max(
-      ...this.getMembershipCategoriesWeek().map((c) => c.count),
-      1
-    );
-    return (count / maxCount) * 100;
-  }
 
   goToViewApplications(): void {
     this.router.navigate(['/applications-list']);
@@ -494,7 +395,7 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    // Use logoutAndNavigate to properly clear browser history and navigate to landing page
+    this.authService.logoutAndNavigate();
   }
 }

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { RoleBasedDashboardService } from '../services/role-based-dashboard.service';
 import { environment } from '../../environments/environment';
 
 @Component({
@@ -141,8 +142,8 @@ import { environment } from '../../environments/environment';
                   <label for="organogram">Organogram - Organizational structure showing applicant role</label>
                 </div>
                 <div class="checklist-item">
-                  <input type="checkbox" id="sponsorships" [(ngModel)]="selectedApplication.adminChecklist.sponsorships" (change)="onChecklistChange()" />
-                  <label for="sponsorships">Sponsorships - Required sponsor appraisals received</label>
+                  <input type="checkbox" id="referees" [(ngModel)]="selectedApplication.adminChecklist.referees" (change)="onChecklistChange()" />
+                  <label for="referees">Referees - Required referee appraisals received</label>
                 </div>
                 <div class="checklist-item">
                   <input type="checkbox" id="certificates" [(ngModel)]="selectedApplication.adminChecklist.certificates" (change)="onChecklistChange()" />
@@ -241,68 +242,75 @@ import { environment } from '../../environments/environment';
             </div>
           </section>
 
-          <!-- Sponsor Appraisals Section -->
-          <section *ngIf="activeSection === 'sponsors'" #sponsorsSection class="content-section">
+          <!-- Referee Appraisals Section -->
+          <section *ngIf="activeSection === 'referees'" #refereesSection class="content-section">
             <div class="section-header">
-              <h2>Sponsor Appraisals</h2>
-              <p class="sponsor-count">{{ getSponsorResponseCount() }}/{{ selectedApplication?.sponsors?.length || 0 }} Responses Received</p>
+              <h2>Referee Appraisals</h2>
+              <p class="referee-count">{{ getRefereeResponseCount() }}/{{ selectedApplication?.sponsors?.length || 0 }} Responses Received</p>
             </div>
             <div class="section-content">
-              <div *ngIf="!selectedApplication?.sponsors || selectedApplication.sponsors.length === 0" class="no-sponsors">
-                <p>No sponsors have been assigned to this application yet.</p>
+              <div *ngIf="!selectedApplication?.sponsors || selectedApplication.sponsors.length === 0" class="no-referees">
+                <p>No referees have been assigned to this application yet.</p>
               </div>
-              <div *ngFor="let sponsor of selectedApplication?.sponsors; let i = index" class="sponsor-card">
-                <div class="sponsor-header">
-                  <h4>Sponsor {{ i + 1 }}: {{ sponsor.sponsorName }}</h4>
-                  <span class="sponsor-status" [class.responded]="sponsor.responses" [class.pending]="!sponsor.responses">
-                    {{ sponsor.responses ? 'Responded' : 'Pending' }}
+              <div *ngFor="let referee of selectedApplication?.sponsors; let i = index" class="referee-card">
+                <div class="referee-header">
+                  <h4>Referee {{ i + 1 }}: {{ referee.sponsorName }}</h4>
+                  <span class="referee-status" [class.responded]="referee.responses" [class.pending]="!referee.responses">
+                    {{ referee.responses ? 'Responded' : 'Pending' }}
                   </span>
                 </div>
-                <div class="sponsor-email">{{ sponsor.sponsorEmail }}</div>
+                <div class="referee-email">{{ referee.sponsorEmail }}</div>
                 
-                <div *ngIf="sponsor.responses" class="appraisal-responses">
+                <div *ngIf="referee.responses" class="appraisal-responses">
                   <div class="response-item">
                     <strong>1. How long have you known the applicant?</strong>
-                    <p>{{ sponsor.responses.question1 }}</p>
+                    <p>{{ referee.responses.question1 }}</p>
                   </div>
                   <div class="response-item">
                     <strong>2. What is your professional relationship with the applicant?</strong>
-                    <p>{{ sponsor.responses.question2 }}</p>
+                    <p>{{ referee.responses.question2 }}</p>
                   </div>
                   <div class="response-item">
                     <strong>3. Describe the applicant's professional competence and technical knowledge.</strong>
-                    <p>{{ sponsor.responses.question3 }}</p>
+                    <p>{{ referee.responses.question3 }}</p>
                   </div>
                   <div class="response-item">
                     <strong>4. What are the applicant's key strengths in their engineering practice?</strong>
-                    <p>{{ sponsor.responses.question4 }}</p>
+                    <p>{{ referee.responses.question4 }}</p>
                   </div>
                   <div class="response-item">
                     <strong>5. Does the applicant meet the ethical standards required by the engineering profession?</strong>
-                    <p>{{ sponsor.responses.question5 }}</p>
+                    <p>{{ referee.responses.question5 }}</p>
                   </div>
                   <div class="response-item">
                     <strong>6. Can you recommend the applicant for membership?</strong>
-                    <p class="recommendation" [class.positive]="sponsor.responses.question6 === 'Yes'" [class.conditional]="sponsor.responses.question6 === 'Yes with conditions'" [class.negative]="sponsor.responses.question6 === 'No'">
-                      {{ sponsor.responses.question6 }}
+                    <p class="recommendation" [class.positive]="referee.responses.question6 === 'Yes'" [class.conditional]="referee.responses.question6 === 'Yes with conditions'" [class.negative]="referee.responses.question6 === 'No'">
+                      {{ referee.responses.question6 }}
                     </p>
                   </div>
-                  <div class="response-item" *ngIf="sponsor.responses.question7">
+                  <div class="response-item" *ngIf="referee.responses.question7">
                     <strong>7. Conditions/Explanation:</strong>
-                    <p>{{ sponsor.responses.question7 }}</p>
+                    <p>{{ referee.responses.question7 }}</p>
                   </div>
-                  <div class="response-item" *ngIf="sponsor.responses.question8">
+                  <div class="response-item" *ngIf="referee.responses.question8">
                     <strong>8. Additional Comments:</strong>
-                    <p>{{ sponsor.responses.question8 }}</p>
+                    <p>{{ referee.responses.question8 }}</p>
                   </div>
-                  <div class="response-date" *ngIf="sponsor.submittedAt">
-                    <em>Submitted: {{ sponsor.submittedAt | date: 'medium' }}</em>
+                  <div class="response-date" *ngIf="referee.submittedAt">
+                    <em>Submitted: {{ referee.submittedAt | date: 'medium' }}</em>
                   </div>
                 </div>
                 
-                <div *ngIf="!sponsor.responses" class="pending-notice">
+                <div *ngIf="!referee.responses" class="pending-notice">
                   <p>Awaiting response from sponsor...</p>
                 </div>
+              </div>
+              
+              <!-- Certify Button -->
+              <div class="certify-section" *ngIf="selectedApplication?.sponsors && selectedApplication.sponsors.length > 0">
+                <button (click)="verifyRefereeResponses()" class="btn-certify" [disabled]="getRefereeResponseCount() < (selectedApplication?.sponsors?.length || 0)">
+                  {{ getRefereeResponseCount() === (selectedApplication?.sponsors?.length || 0) ? '✓ Certify Referee Responses' : 'Waiting for all responses...' }}
+                </button>
               </div>
             </div>
           </section>
@@ -333,9 +341,10 @@ import { environment } from '../../environments/environment';
           <!-- Interview Notification Section -->
           <section *ngIf="activeSection === 'notification'" #notificationSection class="content-section">
             <div class="section-header">
-              <h2>Interview Notification</h2>
+              <h2>Interview Management</h2>
             </div>
             <div class="section-content">
+              <!-- Interview Invitation Status -->
               <div *ngIf="selectedApplication?.interviewNotification" class="existing-notification">
                 <div class="notification-badge">INTERVIEW SCHEDULED</div>
                 <div class="detail-row">
@@ -351,20 +360,27 @@ import { environment } from '../../environments/environment';
                   <span>{{ selectedApplication.interviewNotification.sentAt | date: 'medium' }}</span>
                 </div>
               </div>
-              <div *ngIf="!selectedApplication?.interviewNotification" class="notification-form">
+              
+              <!-- Interview Invitation Form (for admins only) -->
+              <div *ngIf="!selectedApplication?.interviewNotification && !isSuperAdmin" class="notification-form">
                 <div class="form-group">
                   <label for="interviewMessage">Message:</label>
                   <textarea [(ngModel)]="interviewMessage" id="interviewMessage" placeholder="Enter interview notification message..." class="form-input notes" rows="3"></textarea>
                 </div>
-                <button (click)="sendInterviewNotification()" class="btn-primary">Send Interview Notification</button>
+                <button (click)="sendInterviewNotification()" class="btn-primary">Send Interview Invitation</button>
+              </div>
+              
+              <!-- For Super Admin: Show Certificate Status -->
+              <div *ngIf="isSuperAdmin" class="super-admin-note">
+                <p>Certificate approval is handled in the Super Admin Dashboard</p>
               </div>
             </div>
           </section>
 
-          <!-- Interview Confirmation Section -->
-          <section *ngIf="activeSection === 'status'" class="content-section interview-confirmation-section">
+          <!-- Interview Results Section (Super Admin Only) -->
+          <section *ngIf="activeSection === 'status' && isSuperAdmin" class="content-section interview-confirmation-section">
             <div class="section-header">
-              <h2>Interview Confirmation & Certificate Generation</h2>
+              <h2>Interview Results & Certificate Issuance</h2>
             </div>
             <div class="section-content">
               <div class="confirmation-card" [class.passed]="selectedApplication?.status === 'Passed'">
@@ -401,92 +417,6 @@ import { environment } from '../../environments/environment';
                     {{ selectedApplication?.status === 'Passed' ? '✓ Interview Already Confirmed' : '🎓 Confirm Interview Pass & Generate Certificate' }}
                   </button>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Update Status Section -->
-          <section *ngIf="activeSection === 'status'" #statusSection class="content-section">
-            <div class="section-header">
-              <h2>Update Status</h2>
-            </div>
-            <div class="section-content">
-              <div class="detail-row">
-                <span class="label">Current Status:</span>
-                <span class="status-badge" [ngClass]="'status-' + selectedApplication.status.toLowerCase().replace(' ', '-')">
-                  {{ selectedApplication.status }}
-                </span>
-              </div>
-
-              <!-- Show rejection info if application is rejected -->
-              <div *ngIf="selectedApplication.status === 'Rejected' && selectedApplication.rejectionInfo" class="rejection-info-box">
-                <div class="rejection-detail">
-                  <strong>Rejection Reason:</strong>
-                  <p>{{ selectedApplication.rejectionInfo.rejectionReason }}</p>
-                </div>
-                <div class="rejection-detail">
-                  <strong>Rejected By:</strong>
-                  <p>{{ selectedApplication.rejectionInfo.rejectedByName }} ({{ selectedApplication.rejectionInfo.rejectedByEmail }})</p>
-                </div>
-                <div class="rejection-detail">
-                  <strong>Rejected At:</strong>
-                  <p>{{ selectedApplication.rejectionInfo.rejectionTimestamp | date: 'medium' }}</p>
-                </div>
-                <div class="rejection-detail edit-window">
-                  <strong>Edit Window:</strong>
-                  <p [ngClass]="rejectionEditWindowRemaining > 0 ? 'warning' : 'expired'">
-                    {{ getRejectionEditWindowDisplay() }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Show interview invitation for "Interview Required" status -->
-              <div *ngIf="selectedApplication.status === 'Interview Required'" class="interview-action">
-                <p class="action-description">Send an interview invitation to the applicant. They will be notified in their portal.</p>
-                <button (click)="inviteForInterview()" class="btn-interview">
-                  <span class="material-symbols-outlined">mail</span>
-                  Invite for Interview
-                </button>
-              </div>
-
-              <!-- Show status update and certificate download for "Passed" status -->
-              <div *ngIf="selectedApplication.status === 'Passed'" class="certificate-action">
-                <p class="action-description">The applicant has passed the interview and is registered as a ZIE Professional Member.</p>
-                <div class="reg-display" *ngIf="selectedApplication.registrationNumber">
-                  <strong>Registration Number:</strong> {{ selectedApplication.registrationNumber }}
-                </div>
-                <div class="button-group">
-                  <button (click)="downloadCertificate()" class="btn-certificate">
-                    <span class="material-symbols-outlined">download</span>
-                    Download Certificate
-                  </button>
-                </div>
-              </div>
-
-              <!-- Show regular status update for other statuses -->
-              <div *ngIf="selectedApplication.status !== 'Interview Required' && selectedApplication.status !== 'Passed'" class="regular-status-update">
-                <div class="form-group">
-                  <label for="statusUpdate">New Status:</label>
-                  <select [(ngModel)]="selectedStatus" id="statusUpdate" class="form-input">
-                    <option value="">Select Status</option>
-                    <option *ngFor="let status of getAvailableStatuses()" [value]="status">{{ status }}</option>
-                  </select>
-                  <small class="status-hint">Current: <strong>{{ selectedApplication.status }}</strong></small>
-                </div>
-
-                <!-- Show rejection reason input if selecting "Rejected" status -->
-                <div *ngIf="selectedStatus === 'Rejected'" class="form-group">
-                  <label for="rejectionReason">Rejection Reason:</label>
-                  <textarea 
-                    [(ngModel)]="rejectionReason" 
-                    id="rejectionReason"
-                    class="form-input"
-                    placeholder="Please provide a reason for the rejection..."
-                    rows="4"></textarea>
-                  <small>Applicant will have 48 hours to revise and re-submit their application</small>
-                </div>
-
-                <button (click)="updateApplicationStatus()" class="btn-primary">Update Status</button>
               </div>
             </div>
           </section>
@@ -1138,6 +1068,21 @@ import { environment } from '../../environments/environment';
       margin-top: 10px;
     }
 
+    .super-admin-note {
+      background-color: #e3f2fd;
+      border-left: 4px solid #1976d2;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+
+      p {
+        margin: 0;
+        color: #1565c0;
+        font-weight: 500;
+        font-size: 14px;
+      }
+    }
+
     .pending-notice {
       text-align: center;
       padding: 20px;
@@ -1148,6 +1093,42 @@ import { environment } from '../../environments/environment';
 
       p {
         margin: 0;
+      }
+    }
+
+    .certify-section {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 2px solid #004A59;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .btn-certify {
+      background-color: #28a745;
+      color: white;
+      border: 2px solid #28a745;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+
+      &:hover:not(:disabled) {
+        background-color: #218838;
+        border-color: #1e7e34;
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        transform: translateY(-2px);
+      }
+
+      &:disabled {
+        background-color: #ccc;
+        border-color: #ccc;
+        cursor: not-allowed;
+        opacity: 0.6;
       }
     }
 
@@ -1392,6 +1373,21 @@ import { environment } from '../../environments/environment';
       }
     }
 
+    .expatriate-notice {
+      background-color: #fff3e0;
+      border: 2px solid #B99532;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+
+    .notice-text {
+      color: #B99532;
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.5;
+    }
+
     .interview-confirmation-section {
       border-top: 3px solid #28a745;
       background-color: #f0f9f6;
@@ -1618,6 +1614,7 @@ export class AdminApplicationDetailsComponent implements OnInit {
   updateSuccess = false;
   updateError = '';
   isEditingChecklist = false;
+  isSuperAdmin = false;
   
   // Dynamic base URL for uploads
   get uploadsBaseUrl(): string {
@@ -1652,10 +1649,9 @@ export class AdminApplicationDetailsComponent implements OnInit {
     { id: 'checklist', label: 'Verification' },
     { id: 'payment', label: 'Payment' },
     { id: 'grading', label: 'Manual Grading' },
-    { id: 'sponsors', label: 'Sponsor Appraisals' },
+    { id: 'referees', label: 'Referee Appraisal' },
     { id: 'interviews', label: 'Interviews' },
     { id: 'notification', label: 'Interview Notification' },
-    { id: 'status', label: 'Update Status' },
   ];
 
   getSponsorResponseCount(): number {
@@ -1663,14 +1659,21 @@ export class AdminApplicationDetailsComponent implements OnInit {
     return this.selectedApplication.sponsors.filter((s: any) => s.responses).length;
   }
 
+  getRefereeResponseCount(): number {
+    if (!this.selectedApplication?.sponsors) return 0;
+    return this.selectedApplication.sponsors.filter((s: any) => s.responses).length;
+  }
+
   constructor(
     private applicationService: ApplicationService,
     private authService: AuthService,
+    private roleBasedDashboardService: RoleBasedDashboardService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    this.isSuperAdmin = this.roleBasedDashboardService.isSuperAdmin();
     this.route.params.subscribe(params => {
       if (params['id']) {
         this.loadApplication(params['id']);
@@ -1845,6 +1848,30 @@ export class AdminApplicationDetailsComponent implements OnInit {
       },
       error: (error: any) => {
         this.updateError = error.error?.message || 'Failed to add approval';
+      },
+    });
+  }
+
+  verifyRefereeResponses(): void {
+    if (!this.selectedApplication) {
+      this.updateError = 'No application selected';
+      return;
+    }
+
+    if (this.getRefereeResponseCount() < (this.selectedApplication?.sponsors?.length || 0)) {
+      this.updateError = 'All referees must provide responses before certifying';
+      return;
+    }
+
+    this.applicationService.verifyRefereeResponses(this.selectedApplication._id).subscribe({
+      next: (response: any) => {
+        this.selectedApplication = response;
+        this.updateSuccess = true;
+        this.updateError = '';
+        setTimeout(() => (this.updateSuccess = false), 3000);
+      },
+      error: (error: any) => {
+        this.updateError = error.error?.message || 'Failed to verify referee responses';
       },
     });
   }

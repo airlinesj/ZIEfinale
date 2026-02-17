@@ -18,7 +18,7 @@ import { AuthService } from '../services/auth.service';
 
       <div class="sidebar-content">
         <nav class="sidebar-nav">
-          <a routerLink="/form-m1" class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+          <a [routerLink]="applicationFormRoute" class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
             <span class="icon material-symbols-outlined">assignment</span>
             <span class="label" *ngIf="!isCollapsed">ZIE APPLICATION FORM</span>
           </a>
@@ -52,7 +52,7 @@ import { AuthService } from '../services/auth.service';
       </div>
 
       <nav class="mobile-sidebar-nav">
-        <a routerLink="/form-m1" class="mobile-nav-item" routerLinkActive="active" (click)="toggleMobileMenu()">
+        <a [routerLink]="applicationFormRoute" class="mobile-nav-item" routerLinkActive="active" (click)="toggleMobileMenu()">
           <span class="icon material-symbols-outlined">assignment</span>
           <span class="label">ZIE APPLICATION FORM</span>
         </a>
@@ -86,7 +86,7 @@ import { AuthService } from '../services/auth.service';
       display: flex;
       flex-direction: column;
       padding: 0;
-      z-index: 999;
+      z-index: 10;
       transition: width 0.3s ease;
     }
 
@@ -401,6 +401,8 @@ export class SidebarComponent implements OnInit {
   isAdmin = false;
   isCollapsed = false;
   mobileMenuOpen = false;
+  applicationType: 'local' | 'expatriate' | '' = '';
+  applicationFormRoute = '/form-m1';
 
   @Output() sidebarCollapseChange = new EventEmitter<boolean>();
 
@@ -410,6 +412,31 @@ export class SidebarComponent implements OnInit {
     this.authService.currentUser$.subscribe(user => {
       this.isLoggedIn = !!user;
       this.isAdmin = user?.role === 'Admin';
+      
+      // For Applicants, use their registered applicationType
+      if (user?.role === 'Applicant') {
+        this.applicationType = user?.applicationType || '';
+        
+        if (!user?.applicationType) {
+          console.error('⚠ WARNING: Applicant user has no applicationType set!');
+          console.error('  - User:', user?.email);
+          console.error('  - This is a data integrity issue');
+        }
+      } else {
+        this.applicationType = '';
+      }
+      
+      // Set the correct form route based on applicationType
+      if (this.applicationType === 'expatriate') {
+        this.applicationFormRoute = '/expatriate-form';
+      } else if (this.applicationType === 'local') {
+        this.applicationFormRoute = '/form-m1';
+      } else {
+        // Default to m1 if not sure (though this shouldn't happen)
+        this.applicationFormRoute = '/form-m1';
+      }
+      
+      console.log('Sidebar updated - applicationType:', this.applicationType, 'form route:', this.applicationFormRoute);
     });
   }
 
@@ -423,8 +450,8 @@ export class SidebarComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
     this.mobileMenuOpen = false;
-    this.router.navigate(['/login']);
+    // Use logoutAndNavigate to properly clear browser history and navigate to landing page
+    this.authService.logoutAndNavigate();
   }
 }

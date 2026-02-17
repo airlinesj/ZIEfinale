@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
-export interface SponsorAppraisal {
+export interface RefereeAppraisal {
   question1: string;
   question2: string;
   question3: string;
@@ -17,16 +17,16 @@ export interface SponsorAppraisal {
 @Injectable({
   providedIn: 'root',
 })
-export class SponsorService {
-  private apiUrl = `${environment.apiUrl}/sponsors`;
+export class RefereeService {
+  private apiUrl = `${environment.apiUrl}/referees`;
 
   constructor(private http: HttpClient) {}
 
-  getSponsorAppraisal(token: string): Observable<any> {
+  getRefereeAppraisal(token: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/${token}`);
   }
 
-  submitAppraisal(token: string, appraisal: SponsorAppraisal): Observable<any> {
+  submitAppraisal(token: string, appraisal: RefereeAppraisal): Observable<any> {
     return this.http.post(`${this.apiUrl}/${token}/submit`, appraisal);
   }
 }

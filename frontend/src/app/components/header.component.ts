@@ -14,8 +14,8 @@ import { takeUntil } from 'rxjs/operators';
       <button class="menu-toggle d-none-mobile" (click)="toggleMobileMenu()" *ngIf="isLoggedIn && !isAdmin">
         <span class="material-symbols-outlined">{{ mobileMenuOpen ? 'close' : 'menu' }}</span>
       </button>
-      <img src="assets/zielogo.png" alt="ZIE Logo" class="logo" onerror="this.style.display='none'" />
-      <div class="title">ZIMBABWE INSTITUTE OF ENGINEERS</div>
+      <img src="assets/zielogo.png" alt="Zimbabwe Institution of Engineers Logo" class="logo" onerror="this.style.display='none'" />
+      <div class="title">ZIMBABWE INSTITUTION OF ENGINEERS</div>
       <div class="nav-right">
         <a [routerLink]="isAdmin ? '/admin-dashboard' : '/dashboard'" class="nav-link d-none-mobile" *ngIf="isLoggedIn">Dashboard</a>
         <button (click)="logout()" class="nav-button d-none-mobile" *ngIf="isLoggedIn">Logout</button>

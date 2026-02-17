@@ -10,15 +10,15 @@ import { RouterModule } from '@angular/router';
     <div class="landing-container">
       <div class="landing-content">
         <div class="logo-section">
-          <img src="assets/zielogo.png" alt="ZIE Logo" class="landing-logo" />
+          <img src="assets/zielogo.png" alt="Zimbabwe Institution of Engineers Logo" class="landing-logo" />
         </div>
         
-        <h1 class="landing-title">ZIMBABWE INSTITUTE OF ENGINEERS</h1>
+        <h1 class="landing-title">ZIMBABWE INSTITUTION OF ENGINEERS</h1>
         
         <p class="landing-subtitle">Professional Membership Application Portal</p>
         
         <div class="landing-description">
-          <p>Welcome to the ZIE Membership Application Portal. Apply for professional membership in the Zimbabwe Institute of Engineers and advance your engineering career.</p>
+          <p>Welcome to the Zimbabwe Institution of Engineers Membership Application Portal. Apply for professional membership and advance your engineering career.</p>
         </div>
 
         <div class="cta-buttons">

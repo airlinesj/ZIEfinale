@@ -43,7 +43,25 @@ import { AuthService } from '../services/auth.service';
             </div>
           </div>
 
-          <div class="form-group">
+          <!-- Country Field - Only for Applicants -->
+          <div class="form-group" *ngIf="!isAdminModeActive || registerForm.get('role')?.value === 'Applicant'">
+            <label for="country">Country of Origin</label>
+            <select id="country" formControlName="country" class="form-input">
+              <option value="" disabled>Select your country</option>
+              <option *ngFor="let country of countries" [value]="country">{{ country }}</option>
+            </select>
+            <div class="error-message" *ngIf="registerForm.get('country')?.errors">
+              Country is required for applicants
+            </div>
+            <p class="country-note" *ngIf="registerForm.get('country')?.value === 'Zimbabwe'">
+              <strong>Local Applicant:</strong> You will apply using the M1 form and need 3 professional referees
+            </p>
+            <p class="country-note expatriate" *ngIf="registerForm.get('country')?.value && registerForm.get('country')?.value !== 'Zimbabwe'">
+              <strong>Expatriate Applicant:</strong> You will apply using the Expatriate form and require a company recommendation letter
+            </p>
+          </div>
+
+          <div class="form-group" *ngIf="!isAdminModeActive">
             <p class="account-type-note">
               You are registering as an <strong>Applicant</strong> to apply for ZIE membership.
             </p>
@@ -51,12 +69,16 @@ import { AuthService } from '../services/auth.service';
 
           <div class="form-group" *ngIf="isAdminModeActive">
             <label for="role">Account Type</label>
-            <select id="role" formControlName="role" class="form-input">
+            <select id="role" formControlName="role" (change)="onRoleChange()" class="form-input">
               <option value="Applicant">Applicant (Membership Seeker)</option>
               <option value="Admin">Admin (Staff Only)</option>
+              <option value="SuperAdmin">Super Admin (Leadership Only)</option>
             </select>
             <p class="admin-note" *ngIf="registerForm.get('role')?.value === 'Admin'">
               <strong>Admin accounts require an email address containing &#64;admin</strong> (e.g., admin&#64;admin.com)
+            </p>
+            <p class="admin-note" *ngIf="registerForm.get('role')?.value === 'SuperAdmin'">
+              <strong>Super Admin accounts require an email address containing &#64;superadmin</strong> (e.g., superadmin&#64;superadmin.com)
             </p>
           </div>
 
@@ -66,6 +88,10 @@ import { AuthService } from '../services/auth.service';
 
           <p class="login-link">
             Already have an account? <a (click)="goToLogin()">Login Here</a>
+          </p>
+
+          <p class="back-to-home">
+            <a (click)="goToHome()">← Back to Home</a>
           </p>
 
           <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
@@ -163,6 +189,23 @@ import { AuthService } from '../services/auth.service';
       }
     }
 
+    .back-to-home {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 13px;
+
+      a {
+        color: #666;
+        cursor: pointer;
+        text-decoration: none;
+        transition: color 0.2s;
+
+        &:hover {
+          color: #004A59;
+        }
+      }
+    }
+
     .error-message {
       color: #d32f2f;
       font-size: 12px;
@@ -188,6 +231,22 @@ import { AuthService } from '../services/auth.service';
       color: #666;
       font-size: 14px;
       margin: 0;
+    }
+
+    .country-note {
+      color: #004A59;
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 8px;
+      background-color: #e3f2fd;
+      border-left: 3px solid #004A59;
+      border-radius: 3px;
+    }
+
+    .country-note.expatriate {
+      background-color: #fff3e0;
+      border-left-color: #B99532;
+      color: #B99532;
     }
 
     @media (max-width: 768px) {
@@ -330,6 +389,45 @@ export class RegisterComponent implements OnInit {
   isAdminModeActive = false;
   private keySequence: string[] = [];
   private adminKeySequence = ['shift', 'a', 'd', 'm', 'i', 'n']; // Ctrl+Shift+A then d,m,i,n
+  
+  countries = [
+    'Zimbabwe',
+    'South Africa',
+    'Botswana',
+    'Zambia',
+    'Mozambique',
+    'Malawi',
+    'Tanzania',
+    'Kenya',
+    'Uganda',
+    'Ethiopia',
+    'Nigeria',
+    'Ghana',
+    'Cameroon',
+    'Rwanda',
+    'Angola',
+    'Namibia',
+    'USA',
+    'Canada',
+    'United Kingdom',
+    'Ireland',
+    'Germany',
+    'France',
+    'Netherlands',
+    'Belgium',
+    'Switzerland',
+    'Australia',
+    'New Zealand',
+    'Singapore',
+    'Malaysia',
+    'India',
+    'China',
+    'Japan',
+    'South Korea',
+    'UAE',
+    'Saudi Arabia',
+    'Other',
+  ];
 
   constructor(
     private fb: FormBuilder,
@@ -341,8 +439,30 @@ export class RegisterComponent implements OnInit {
     this.registerForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
+      country: ['', Validators.required],
       role: ['Applicant'],
     });
+  }
+
+  onRoleChange(): void {
+    const role = this.registerForm.get('role')?.value;
+    const countryControl = this.registerForm.get('country');
+    
+    if (role === 'Admin' || role === 'SuperAdmin') {
+      // Make country optional for admin and super admin
+      countryControl?.clearValidators();
+      countryControl?.setValue('');
+      countryControl?.markAsPristine();
+      countryControl?.markAsUntouched();
+      countryControl?.updateValueAndValidity();
+    } else {
+      // Make country required for applicants
+      countryControl?.setValidators(Validators.required);
+      countryControl?.updateValueAndValidity();
+    }
+    
+    // Update the overall form validity
+    this.registerForm.updateValueAndValidity();
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -355,7 +475,30 @@ export class RegisterComponent implements OnInit {
         // Reset to Applicant when exiting admin mode
         this.registerForm.get('role')?.setValue('Applicant');
       }
+      // Update validators when toggling admin mode
+      this.updateCountryValidators();
     }
+  }
+
+  private updateCountryValidators(): void {
+    const role = this.registerForm.get('role')?.value;
+    const countryControl = this.registerForm.get('country');
+    
+    if (!this.isAdminModeActive || role === 'Applicant') {
+      // Make country required for applicants
+      countryControl?.setValidators(Validators.required);
+      countryControl?.updateValueAndValidity();
+    } else {
+      // Make country optional for admin and super admin
+      countryControl?.clearValidators();
+      countryControl?.setValue('');
+      countryControl?.markAsPristine();
+      countryControl?.markAsUntouched();
+      countryControl?.updateValueAndValidity();
+    }
+    
+    // Update the overall form validity
+    this.registerForm.updateValueAndValidity();
   }
 
   onSubmit(): void {
@@ -365,21 +508,43 @@ export class RegisterComponent implements OnInit {
     this.errorMessage = '';
     this.successMessage = '';
 
+    console.log('\n=== REGISTER COMPONENT: Submit ===');
+    console.log('Form value being sent:', this.registerForm.value);
+
     this.authService.register(this.registerForm.value).subscribe({
       next: (response) => {
+        console.log('\n=== REGISTER COMPONENT: Response Received ===');
+        console.log('Full response:', response);
+        console.log('User object:', response.user);
+        console.log('applicationType in response:', response.user?.applicationType);
+        console.log('classification:', response.classification);
+        
         this.isLoading = false;
-        this.successMessage = 'Account created successfully! Redirecting...';
-        const redirectUrl = response.user.role === 'Admin' ? '/admin-dashboard' : '/form-m1';
-        setTimeout(() => this.router.navigate([redirectUrl]), 2000);
+        this.successMessage = 'Account created successfully! Setting up your dashboard...';
+        
+        console.log('🔄 Redirecting to /login-redirect');
+        // Redirect to login-redirect for smart routing based on classification
+        setTimeout(() => {
+          console.log('✓ Executing redirect');
+          this.router.navigate(['/login-redirect']);
+        }, 2000);
       },
       error: (error) => {
+        console.error('❌ Registration error:', error);
+        console.error('Full error object:', JSON.stringify(error.error, null, 2));
+        console.error('Error message:', error.error?.message);
+        console.error('Form value:', this.registerForm.value);
         this.isLoading = false;
-        this.errorMessage = error.error?.message || 'Registration failed. Please try again.';
+        this.errorMessage = error.error?.message || error.error?.error || 'Registration failed. Please try again.';
       },
     });
   }
 
   goToLogin(): void {
     this.router.navigate(['/login']);
+  }
+
+  goToHome(): void {
+    this.router.navigate(['/']);
   }
 }

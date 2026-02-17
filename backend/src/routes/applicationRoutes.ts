@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import {
   createApplication,
+  createExpatriateApplication,
   getApplicationByUser,
   getApplicationById,
   updateApplicationStatus,
@@ -15,14 +16,14 @@ import {
   setManualGrade,
   addAdminApproval,
   sendInterviewNotification,
-  updateSponsors,
+  updateReferees,
   getCertificate,
   passInterview,
 } from '../controllers/applicationController';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
 import { multipleUploadPDF, uploadPaymentProofPDF } from '../middleware/fileUpload';
 import { parseFormDataFields } from '../middleware/parseFormDataFields';
-import { sendSponsorAppraisalEmail } from '../services/emailService';
+import { sendRefereeAppraisalEmail, sendSponsorAppraisalEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ const applicationValidation = [
   body('personalParticulars').notEmpty(),
   body('chosenGrade').isIn(['Student', 'Graduate', 'Technician', 'Technologist', 'Member', 'Fellow']),
   body('chosenSpecialistDivision').notEmpty(),
-  body('sponsors').isArray(),
+  body('referees').isArray(),
 ];
 
 // Routes
@@ -105,7 +106,7 @@ router.post('/:id/pass-interview', authMiddleware, adminMiddleware, passIntervie
 // PUT routes with IDs
 router.put('/:id/status', authMiddleware, adminMiddleware, updateApplicationStatus);
 router.put('/:id/checklist', authMiddleware, adminMiddleware, updateApplicationChecklist);
-router.put('/:id/sponsors', authMiddleware, updateSponsors);
+router.put('/:id/referees', authMiddleware, updateReferees);
 router.put('/:id/verify-payment', authMiddleware, adminMiddleware, verifyPayment);
 
 // GET routes with IDs
@@ -114,6 +115,9 @@ router.get('/:id/verification-report', authMiddleware, adminMiddleware, getVerif
 router.get('/:id/certificate', authMiddleware, getCertificate);
 
 // Root routes (must be last to avoid catching ID routes)
+// Specific POST route for expatriate applications (must come before generic POST)
+router.post('/expatriate', authMiddleware, multipleUploadPDF, parseFormDataFields, createExpatriateApplication);
+// Generic POST route for local applications
 router.post('/', authMiddleware, multipleUploadPDF, parseFormDataFields, applicationValidation, createApplication);
 router.get('/', authMiddleware, getApplicationByUser);
 router.get('/:id', authMiddleware, getApplicationById);

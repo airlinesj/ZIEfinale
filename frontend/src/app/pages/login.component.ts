@@ -10,26 +10,15 @@ import { AuthService } from '../services/auth.service';
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   template: `
     <div class="login-container">
-      <div class="login-card card">
-        <div class="tabs">
-          <button
-            [class.active]="isApplicant"
-            (click)="toggleTab('applicant')"
-            class="tab-button"
-          >
-            Applicant Login
-          </button>
-          <button
-            [class.active]="!isApplicant"
-            (click)="toggleTab('admin')"
-            class="tab-button"
-          >
-            Admin Login
-          </button>
-        </div>
+      <!-- Loading Overlay -->
+      <div class="loading-overlay" *ngIf="isLoading">
+        <div class="loader"></div>
+        <p class="loading-text">Authenticating...</p>
+      </div>
 
+      <div class="login-card card">
         <div class="tab-content">
-          <h2>{{ isApplicant ? 'Applicant' : 'Admin' }} Login</h2>
+          <h2>Applicant Login</h2>
 
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
             <div class="form-group">
@@ -68,6 +57,10 @@ import { AuthService } from '../services/auth.service';
               Don't have an account? <a (click)="goToRegister()">Sign Up Here</a>
             </p>
 
+            <p class="back-to-home">
+              <a (click)="goToHome()">← Back to Home</a>
+            </p>
+
             <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
           </form>
         </div>
@@ -91,28 +84,6 @@ import { AuthService } from '../services/auth.service';
       border: 2.5px solid #004A59 !important;
       border-radius: 8px;
       padding: 30px;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
-    .tab-button {
-      flex: 1;
-      padding: 10px;
-      border: 2.5px solid #004A59;
-      background-color: #FFFFFF;
-      color: #004A59;
-      cursor: pointer;
-      font-weight: 600;
-      border-radius: 4px;
-
-      &.active {
-        background-color: #004A59;
-        color: white;
-      }
     }
 
     h2 {
@@ -178,6 +149,23 @@ import { AuthService } from '../services/auth.service';
       }
     }
 
+    .back-to-home {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 13px;
+
+      a {
+        color: #666;
+        cursor: pointer;
+        text-decoration: none;
+        transition: color 0.2s;
+
+        &:hover {
+          color: #004A59;
+        }
+      }
+    }
+
     .error-message {
       color: #d32f2f;
       font-size: 12px;
@@ -194,16 +182,6 @@ import { AuthService } from '../services/auth.service';
       .login-card {
         max-width: 100%;
         padding: 25px;
-      }
-
-      .tabs {
-        gap: 8px;
-        margin-bottom: 18px;
-      }
-
-      .tab-button {
-        padding: 10px;
-        font-size: 13px;
       }
 
       h2 {
@@ -251,17 +229,6 @@ import { AuthService } from '../services/auth.service';
         border-radius: 6px;
       }
 
-      .tabs {
-        gap: 6px;
-        margin-bottom: 15px;
-      }
-
-      .tab-button {
-        padding: 8px 6px;
-        font-size: 12px;
-        border-radius: 3px;
-      }
-
       h2 {
         font-size: 1.3rem;
         margin-bottom: 15px;
@@ -299,6 +266,104 @@ import { AuthService } from '../services/auth.service';
         font-size: 11px;
       }
     }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 74, 89, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 9999;
+    }
+
+    .loader {
+      position: relative;
+      font-size: 16px;
+      width: 5.5em;
+      height: 5.5em;
+    }
+
+    .loader:before {
+      content: '';
+      position: absolute;
+      transform: translate(-50%, -50%) rotate(45deg);
+      height: 100%;
+      width: 4px;
+      background: #B99532;
+      left: 50%;
+      top: 50%;
+    }
+
+    .loader:after {
+      content: '';
+      position: absolute;
+      left: 0.2em;
+      bottom: 0.18em;
+      width: 1em;
+      height: 1em;
+      background-color: #B99532;
+      border-radius: 15%;
+      animation: rollingRock 2.5s cubic-bezier(.79, 0, .47, .97) infinite;
+    }
+
+    @keyframes rollingRock {
+      0% {
+        transform: translate(0, -1em) rotate(-45deg)
+      }
+
+      5% {
+        transform: translate(0, -1em) rotate(-50deg)
+      }
+
+      20% {
+        transform: translate(1em, -2em) rotate(47deg)
+      }
+
+      25% {
+        transform: translate(1em, -2em) rotate(45deg)
+      }
+
+      30% {
+        transform: translate(1em, -2em) rotate(40deg)
+      }
+
+      45% {
+        transform: translate(2em, -3em) rotate(137deg)
+      }
+
+      50% {
+        transform: translate(2em, -3em) rotate(135deg)
+      }
+
+      55% {
+        transform: translate(2em, -3em) rotate(130deg)
+      }
+
+      70% {
+        transform: translate(3em, -4em) rotate(217deg)
+      }
+
+      75% {
+        transform: translate(3em, -4em) rotate(220deg)
+      }
+
+      100% {
+        transform: translate(0, -1em) rotate(-225deg)
+      }
+    }
+
+    .loading-text {
+      margin-top: 30px;
+      color: #FFFFFF;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
   `]
 })
 export class LoginComponent implements OnInit {
@@ -324,10 +389,6 @@ export class LoginComponent implements OnInit {
   goBack(): void {
     this.router.navigate(['/']);
   }
-  toggleTab(tab: string): void {
-    this.isApplicant = tab === 'applicant';
-    this.errorMessage = '';
-  }
 
   onSubmit(): void {
     if (!this.loginForm.valid) return;
@@ -335,13 +396,24 @@ export class LoginComponent implements OnInit {
     this.isLoading = true;
     this.errorMessage = '';
 
+    console.log('\n=== LOGIN COMPONENT: Submit ===');
+    console.log('Form value being sent:', this.loginForm.value);
+
     this.authService.login(this.loginForm.value).subscribe({
       next: (response) => {
+        console.log('\n=== LOGIN COMPONENT: Response Received ===');
+        console.log('Full response:', response);
+        console.log('User object:', response.user);
+        console.log('applicationType in response:', response.user?.applicationType);
+        console.log('classification:', response.classification);
+        
         this.isLoading = false;
-        const redirectUrl = this.isApplicant ? '/dashboard' : '/admin-dashboard';
-        this.router.navigate([redirectUrl]);
+        console.log('🔄 Redirecting to /login-redirect');
+        // Redirect to login redirect component which will handle smart routing
+        this.router.navigate(['/login-redirect']);
       },
       error: (error) => {
+        console.error('❌ Login error:', error);
         this.isLoading = false;
         this.errorMessage = error.error?.message || 'Login failed. Please try again.';
       },
@@ -350,5 +422,9 @@ export class LoginComponent implements OnInit {
 
   goToRegister(): void {
     this.router.navigate(['/register']);
+  }
+
+  goToHome(): void {
+    this.router.navigate(['/']);
   }
 }

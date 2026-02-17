@@ -158,8 +158,8 @@ import { environment } from '../../environments/environment';
                 <label for="organogram">Organogram - Organizational structure showing applicant role</label>
               </div>
               <div class="checklist-item">
-                <input type="checkbox" id="sponsorships" [(ngModel)]="application.adminChecklist.sponsorships" />
-                <label for="sponsorships">Sponsorships - Required sponsor appraisals received</label>
+                <input type="checkbox" id="referees" [(ngModel)]="application.adminChecklist.referees" />
+                <label for="referees">Referees - Required referee appraisals received</label>
               </div>
               <div class="checklist-item">
                 <input type="checkbox" id="certificates" [(ngModel)]="application.adminChecklist.certificates" />
@@ -167,14 +167,14 @@ import { environment } from '../../environments/environment';
               </div>
             </div>
 
-            <div class="sponsor-section">
-              <h3>Sponsor Appraisals</h3>
-              <div *ngFor="let sponsor of application.sponsors" class="sponsor-info">
-                <p><strong>{{ sponsor.sponsorName }}</strong> ({{ sponsor.sponsorEmail }})</p>
-                <p *ngIf="sponsor.appraisalResponse">
+            <div class="referee-section">
+              <h3>Referee Appraisals</h3>
+              <div *ngFor="let referee of application.referees" class="referee-info">
+                <p><strong>{{ referee.refereeName }}</strong> ({{ referee.refereeEmail }})</p>
+                <p *ngIf="referee.appraisalResponse">
                   <span class="badge-confidential">Confidential Response Received</span>
                 </p>
-                <p *ngIf="!sponsor.appraisalResponse" class="pending">Pending Response</p>
+                <p *ngIf="!referee.appraisalResponse" class="pending">Pending Response</p>
               </div>
             </div>
 
@@ -680,20 +680,20 @@ import { environment } from '../../environments/environment';
       flex: 1;
     }
 
-    .sponsor-section {
+    .referee-section {
       margin: 20px 0;
       padding: 15px;
       background-color: #f9f9f9;
       border-radius: 4px;
     }
 
-    .sponsor-section h3 {
+    .referee-section h3 {
       color: #004A59;
       font-size: 14px;
       margin: 0 0 10px 0;
     }
 
-    .sponsor-info {
+    .referee-info {
       padding: 10px;
       margin-bottom: 8px;
       background-color: white;
@@ -701,7 +701,7 @@ import { environment } from '../../environments/environment';
       border-radius: 3px;
     }
 
-    .sponsor-info p {
+    .referee-info p {
       margin: 5px 0;
       font-size: 13px;
     }
@@ -1124,7 +1124,7 @@ export class ApplicationDetailsComponent implements OnInit {
       trainingReport: this.application.adminChecklist.trainingReport,
       projectReport: this.application.adminChecklist.projectReport,
       organogram: this.application.adminChecklist.organogram,
-      sponsorships: this.application.adminChecklist.sponsorships,
+      sponsorships: this.application.adminChecklist.referees,
       certificates: this.application.adminChecklist.certificates,
       adminNotes: this.application.adminNotes,
     };
@@ -1246,7 +1246,7 @@ export class ApplicationDetailsComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    // Use logoutAndNavigate to properly clear browser history and navigate to landing page
+    this.authService.logoutAndNavigate();
   }
 }

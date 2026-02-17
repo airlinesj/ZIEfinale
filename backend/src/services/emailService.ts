@@ -1,5 +1,14 @@
 import nodemailer from 'nodemailer';
 
+interface RefereeAppraisalEmailData {
+  applicantName: string;
+  applicantEmail: string;
+  refereeName: string;
+  refereeEmail: string;
+  applicationId: string;
+  refereeToken: string;
+}
+
 interface SponsorAppraisalEmailData {
   applicantName: string;
   applicantEmail: string;
@@ -41,6 +50,104 @@ function getEmailTransporter() {
 }
 
 /**
+ * Send referee appraisal email to a referee
+ */
+export async function sendRefereeAppraisalEmail(data: RefereeAppraisalEmailData): Promise<EmailResult> {
+  try {
+    const transporter = getEmailTransporter();
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+    // Build the referee appraisal link
+    const appraisalLink = `${frontendUrl}/referee-review?applicationId=${encodeURIComponent(data.applicationId)}&token=${encodeURIComponent(data.refereeToken)}`;
+
+    // HTML email template
+    const htmlContent = `
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+            <h2 style="color: #2c3e50;">Referee Appraisal Request</h2>
+            
+            <p>Dear <strong>${data.refereeName}</strong>,</p>
+            
+            <p>You have been nominated as a referee for the following applicant:</p>
+            
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p><strong>Applicant Name:</strong> ${data.applicantName}</p>
+              <p><strong>Applicant Email:</strong> ${data.applicantEmail}</p>
+              <p><strong>Application ID:</strong> ${data.applicationId}</p>
+            </div>
+            
+            <p>Please review the application and provide your appraisal by clicking the link below:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${appraisalLink}" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                View & Appraise Application
+              </a>
+            </div>
+            
+            <p style="font-size: 12px; color: #666;">
+              If the link doesn't work, copy and paste this URL in your browser:<br/>
+              ${appraisalLink}
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            
+            <p style="font-size: 12px; color: #666;">
+              This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Plain text version
+    const textContent = `
+Referee Appraisal Request
+
+Dear ${data.refereeName},
+
+You have been nominated as a referee for the following applicant:
+
+Applicant Name: ${data.applicantName}
+Applicant Email: ${data.applicantEmail}
+Application ID: ${data.applicationId}
+
+Please review the application and provide your appraisal using the following link:
+${appraisalLink}
+
+This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
+    `;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: data.refereeEmail,
+      subject: `Referee Appraisal Request for ${data.applicantName}`,
+      text: textContent,
+      html: htmlContent,
+    };;
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log('✉️ Referee appraisal email sent:', {
+      messageId: info.messageId,
+      to: data.refereeEmail,
+      applicationId: data.applicationId,
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId,
+    };
+  } catch (error: any) {
+    console.error('❌ Error sending referee appraisal email:', error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Send sponsor appraisal email to a sponsor
  */
 export async function sendSponsorAppraisalEmail(data: SponsorAppraisalEmailData): Promise<EmailResult> {
@@ -71,7 +178,7 @@ export async function sendSponsorAppraisalEmail(data: SponsorAppraisalEmailData)
             <p>Please review the application and provide your appraisal by clicking the link below:</p>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${appraisalLink}" style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              <a href="${appraisalLink}" style="background-color: #27ae60; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
                 View & Appraise Application
               </a>
             </div>
@@ -84,7 +191,7 @@ export async function sendSponsorAppraisalEmail(data: SponsorAppraisalEmailData)
             <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
             
             <p style="font-size: 12px; color: #666;">
-              This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+              This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
             </p>
           </div>
         </body>
@@ -106,7 +213,7 @@ Application ID: ${data.applicationId}
 Please review the application and provide your appraisal using the following link:
 ${appraisalLink}
 
-This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
     `;
 
     const mailOptions = {
@@ -206,7 +313,7 @@ export async function sendInterviewNotificationEmail(
           <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
           
           <p style="font-size: 12px; color: #666;">
-            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+            This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
           </p>
         </div>
       </body>
@@ -234,7 +341,7 @@ export async function sendApplicationConfirmationEmail(
           
           <p>Dear <strong>${name}</strong>,</p>
           
-          <p>Thank you for submitting your membership application to ZIE.</p>
+          <p>Thank you for submitting your membership application to Zimbabwe Institution of Engineers.</p>
           
           <p>Your application has been received and is currently being reviewed. Below are your application details:</p>
           
@@ -255,14 +362,14 @@ export async function sendApplicationConfirmationEmail(
           <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
           
           <p style="font-size: 12px; color: #666;">
-            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+            This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
           </p>
         </div>
       </body>
     </html>
   `;
 
-  return sendEmail(email, 'Application Confirmation - ZIE', htmlContent);
+  return sendEmail(email, 'Application Confirmation - Zimbabwe Institution of Engineers', htmlContent);
 }
 
 /**
@@ -319,7 +426,7 @@ export async function sendStatusUpdateEmail(
           <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
           
           <p style="font-size: 12px; color: #666;">
-            This is an automated email from the ZIE Membership Portal. Please do not reply to this email.
+            This is an automated email from the Zimbabwe Institution of Engineers Membership Portal. Please do not reply to this email.
           </p>
         </div>
       </body>

@@ -7,7 +7,7 @@ import path from 'path';
 import multer from 'multer';
 import authRoutes from './routes/authRoutes';
 import applicationRoutes from './routes/applicationRoutes';
-import sponsorRoutes from './routes/sponsorRoutes';
+import refereeRoutes from './routes/sponsorRoutes';
 import { initializeDefaultGrades } from './models/MembershipGrade';
 
 dotenv.config();
@@ -72,7 +72,7 @@ mongoose
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
-app.use('/api/sponsors', sponsorRoutes);
+app.use('/api/referees', refereeRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {

@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, F
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { getFeeBreakdown } from '../services/membership-fee.service';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -59,6 +60,12 @@ class CustomValidators {
   ],
   template: `
     <div class="form-container">
+      <!-- Loading Overlay -->
+      <div class="loading-overlay" *ngIf="isSubmitting">
+        <div class="loader"></div>
+        <p class="loading-text">Submitting your application...</p>
+      </div>
+
       <h1>Form M1 - ZIE Membership Application</h1>
 
       <mat-stepper #stepper>
@@ -333,6 +340,26 @@ class CustomValidators {
                 </ul>
               </div>
 
+              <!-- Fee Breakdown Display for Local Applicants -->
+              <div class="fee-breakdown" *ngIf="feeBreakdown">
+                <div class="fee-breakdown-header">
+                  <h4>💰 Membership Fee Breakdown - {{ feeBreakdown.gradeName }}</h4>
+                </div>
+                <div class="fee-items">
+                  <div class="fee-item" *ngFor="let item of (feeBreakdown.fees | keyvalue)">
+                    <span class="fee-label">{{ item.key }}</span>
+                    <span class="fee-amount">$ {{ item.value }}</span>
+                  </div>
+                  <div class="fee-total">
+                    <strong>Total Annual Fee:</strong>
+                    <strong class="total-amount">$ {{ feeBreakdown.total }} (≈ {{ calculateZWLAmount(feeBreakdown.total) }} ZWL)</strong>
+                  </div>
+                </div>
+                <p class="fee-note">
+                  <em>All fees shown in USD with ZWL equivalent at current exchange rate (1 USD = 0.015 ZWL).</em>
+                </p>
+              </div>
+
               <div class="form-group">
                 <label>Specialist Division</label>
                 <select formControlName="chosenSpecialistDivision" class="form-input">
@@ -418,21 +445,21 @@ class CustomValidators {
           </form>
         </mat-step>
 
-        <!-- Step 5: Sponsors -->
-        <mat-step [stepControl]="sponsorsForm" label="Sponsors">
-          <form [formGroup]="sponsorsForm">
+        <!-- Step 5: Referees -->
+        <mat-step [stepControl]="refereesForm" label="Referees">
+          <form [formGroup]="refereesForm">
             <div class="step-content">
               <p class="info-text">
-                Please list three professional sponsors who can provide appraisals for your application.
+                Please list three professional referees who can provide appraisals for your application.
                 These should be qualified professionals in your field with knowledge of your work.
               </p>
 
-              <div formArrayName="sponsors">
-                <div *ngFor="let sponsor of sponsorsArray.controls; let i = index" class="sponsor-item">
-                  <h4>Sponsor {{ i + 1 }}</h4>
+              <div formArrayName="referees">
+                <div *ngFor="let referee of refereesArray.controls; let i = index" class="referee-item">
+                  <h4>Referee {{ i + 1 }}</h4>
                   <div [formGroupName]="i">
                     <div class="form-group">
-                      <label>Sponsor Name</label>
+                      <label>Referee Name</label>
                       <input
                         type="text"
                         formControlName="name"
@@ -442,7 +469,7 @@ class CustomValidators {
                     </div>
 
                     <div class="form-group">
-                      <label>Sponsor Email</label>
+                      <label>Referee Email</label>
                       <input
                         type="email"
                         formControlName="email"
@@ -453,9 +480,9 @@ class CustomValidators {
 
                     <button
                       type="button"
-                      (click)="removeSponsor(i)"
+                      (click)="removeReferee(i)"
                       class="btn-secondary"
-                      *ngIf="sponsorsArray.length > 1"
+                      *ngIf="refereesArray.length > 1"
                     >
                       Remove
                     </button>
@@ -463,8 +490,8 @@ class CustomValidators {
                 </div>
               </div>
 
-              <button type="button" (click)="addSponsor()" class="btn-secondary" *ngIf="sponsorsArray.length < 3">
-                + Add Sponsor
+              <button type="button" (click)="addReferee()" class="btn-secondary" *ngIf="refereesArray.length < 3">
+                + Add Referee
               </button>
             </div>
 
@@ -474,7 +501,7 @@ class CustomValidators {
                 matStepperNext
                 type="button"
                 class="btn-primary"
-                [disabled]="!sponsorsForm.valid || sponsorsArray.length < 3"
+                [disabled]="!refereesForm.valid || refereesArray.length < 3"
               >
                 Review & Submit
               </button>
@@ -502,10 +529,10 @@ class CustomValidators {
             </div>
 
             <div class="review-section">
-              <h4>Sponsors</h4>
+              <h4>Referees</h4>
               <ul>
-                <li *ngFor="let sponsor of sponsorsArray.controls">
-                  {{ sponsor.get('name')?.value }} ({{ sponsor.get('email')?.value }})
+                <li *ngFor="let referee of refereesArray.controls">
+                  {{ referee.get('name')?.value }} ({{ referee.get('email')?.value }})
                 </li>
               </ul>
             </div>
@@ -533,6 +560,105 @@ class CustomValidators {
       width: 100%;
       margin: 20px 0 40px 0;
       padding: 30px;
+      position: relative;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 74, 89, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 9999;
+    }
+
+    .loader {
+      position: relative;
+      font-size: 16px;
+      width: 5.5em;
+      height: 5.5em;
+    }
+
+    .loader:before {
+      content: '';
+      position: absolute;
+      transform: translate(-50%, -50%) rotate(45deg);
+      height: 100%;
+      width: 4px;
+      background: #B99532;
+      left: 50%;
+      top: 50%;
+    }
+
+    .loader:after {
+      content: '';
+      position: absolute;
+      left: 0.2em;
+      bottom: 0.18em;
+      width: 1em;
+      height: 1em;
+      background-color: #B99532;
+      border-radius: 15%;
+      animation: rollingRock 2.5s cubic-bezier(.79, 0, .47, .97) infinite;
+    }
+
+    @keyframes rollingRock {
+      0% {
+        transform: translate(0, -1em) rotate(-45deg)
+      }
+
+      5% {
+        transform: translate(0, -1em) rotate(-50deg)
+      }
+
+      20% {
+        transform: translate(1em, -2em) rotate(47deg)
+      }
+
+      25% {
+        transform: translate(1em, -2em) rotate(45deg)
+      }
+
+      30% {
+        transform: translate(1em, -2em) rotate(40deg)
+      }
+
+      45% {
+        transform: translate(2em, -3em) rotate(137deg)
+      }
+
+      50% {
+        transform: translate(2em, -3em) rotate(135deg)
+      }
+
+      55% {
+        transform: translate(2em, -3em) rotate(130deg)
+      }
+
+      70% {
+        transform: translate(3em, -4em) rotate(217deg)
+      }
+
+      75% {
+        transform: translate(3em, -4em) rotate(220deg)
+      }
+
+      100% {
+        transform: translate(0, -1em) rotate(-225deg)
+      }
+    }
+
+    .loading-text {
+      margin-top: 30px;
+      color: #FFFFFF;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
     }
 
     h1 {
@@ -576,7 +702,7 @@ class CustomValidators {
       resize: vertical;
     }
 
-    .education-item, .experience-item, .sponsor-item {
+    .education-item, .experience-item, .referee-item {
       border: 2.5px solid #004A59;
       padding: 15px;
       margin-bottom: 15px;
@@ -785,6 +911,95 @@ class CustomValidators {
       margin-bottom: 20px;
       line-height: 1.6;
     }
+
+    .fee-breakdown {
+      background-color: #f5f5f5;
+      border: 2px solid #B99532;
+      border-radius: 4px;
+      padding: 20px;
+      margin-top: 25px;
+      margin-bottom: 20px;
+    }
+
+    .fee-breakdown-header {
+      border-bottom: 2px solid #B99532;
+      padding-bottom: 12px;
+      margin-bottom: 15px;
+    }
+
+    .fee-breakdown-header h4 {
+      color: #004A59;
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .fee-items {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .fee-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #ddd;
+      font-size: 14px;
+    }
+
+    .fee-label {
+      font-weight: 600;
+      color: #004A59;
+      flex: 1;
+    }
+
+    .fee-amount {
+      font-weight: 700;
+      color: #B99532;
+      min-width: 180px;
+      text-align: right;
+    }
+
+    .fee-zwl {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      font-weight: normal;
+    }
+
+    .fee-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      margin-top: 8px;
+      border-top: 2px solid #B99532;
+      font-size: 14px;
+    }
+
+    .total-amount {
+      color: #B99532;
+      font-size: 16px;
+    }
+
+    .total-zwl {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      font-weight: normal;
+    }
+
+    .fee-note {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      font-size: 12px;
+      color: #666;
+      font-style: italic;
+      margin-bottom: 0;
+    }
   `]
 })
 export class FormM1Component implements OnInit {
@@ -792,11 +1007,12 @@ export class FormM1Component implements OnInit {
   educationForm!: FormGroup;
   experienceForm!: FormGroup;
   gradeForm!: FormGroup;
-  sponsorsForm!: FormGroup;
+  refereesForm!: FormGroup;
   isSubmitting = false;
   errorMessage = '';
   successMessage = '';
   estimatedFee = 0;
+  feeBreakdown: any = null;
   selectedGradeRequirements: any = null;
   suggestedGrade: string = '';
   currentUserId: string | null = null;
@@ -826,10 +1042,39 @@ export class FormM1Component implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Verify user is local applicant (not expatriate)
+    const currentUser = this.authService.getCurrentUser();
+    console.log('📋 M1 Form.ngOnInit - Current user:', currentUser);
+    
+    if (!currentUser) {
+      console.warn('⚠ M1 Form - No user found, redirecting to login');
+      this.router.navigate(['/login']);
+      return;
+    }
+    
+    console.log('📋 M1 Form - User applicationType:', currentUser.applicationType);
+    
+    if (currentUser.applicationType === 'expatriate') {
+      console.warn('❌ M1 Form - Expatriate user detected, redirecting to expatriate form');
+      this.router.navigate(['/expatriate-form']);
+      return;
+    }
+    
+    console.log('✓ M1 Form - User is local applicant, loading form');
+    
     this.initializeForms();
     
-    // Subscribe to current user changes to detect when user logs in/out
+    // Watch for user data changes - if user becomes expatriate, redirect
     this.authService.currentUser$.subscribe((user: any) => {
+      console.log('👁️ M1 Form - User data changed');
+      
+      // Check if applicationType changed to expatriate (e.g., from server refresh)
+      if (user?.applicationType === 'expatriate') {
+        console.warn('❌ M1 Form - Applicant type changed to expatriate, redirecting');
+        this.router.navigate(['/expatriate-form']);
+        return;
+      }
+      
       const newUserId = user?.id;
       
       // If user changed (different user or user logged out), clear form
@@ -946,21 +1191,21 @@ export class FormM1Component implements OnInit {
         this.onGradeChange();
       }
 
-      // Sponsors
-      if (application.sponsors && application.sponsors.length > 0) {
-        const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
+      // Referees
+        if (application.sponsors && application.sponsors.length > 0) {
+        const refereesArray = this.refereesForm.get('referees') as FormArray;
         // Clear existing
-        while (sponsorsArray.length > 0) {
-          sponsorsArray.removeAt(0);
+        while (refereesArray.length > 0) {
+          refereesArray.removeAt(0);
         }
-        // Add sponsor entries
+        // Add referee entries
         application.sponsors.forEach((sponsor: any) => {
-          const group = this.createSponsorGroup();
+          const group = this.createRefereeGroup();
           group.patchValue({
             name: sponsor.sponsorName,
             email: sponsor.sponsorEmail
           });
-          sponsorsArray.push(group);
+          refereesArray.push(group);
         });
       }
 
@@ -980,7 +1225,7 @@ export class FormM1Component implements OnInit {
         education: this.educationForm.value,
         experience: this.experienceForm.value,
         grade: this.gradeForm?.value,
-        sponsors: this.sponsorsForm?.value,
+        sponsors: this.refereesForm?.value,
       };
       localStorage.setItem('applicationFormData', JSON.stringify(formData));
       console.log('Form data saved to localStorage');
@@ -1021,10 +1266,10 @@ export class FormM1Component implements OnInit {
           this.onGradeChange();
         }
         if (formData.sponsors && formData.sponsors.sponsors) {
-          const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
+          const refereesArray = this.refereesForm.get('referees') as FormArray;
           formData.sponsors.sponsors.forEach((sponsor: any, index: number) => {
-            if (index < sponsorsArray.length) {
-              sponsorsArray.at(index).patchValue(sponsor);
+            if (index < refereesArray.length) {
+              refereesArray.at(index).patchValue(sponsor);
             }
           });
         }
@@ -1075,10 +1320,10 @@ export class FormM1Component implements OnInit {
       this.selectedGradeRequirements = null;
       this.estimatedFee = 0;
     }
-    if (this.sponsorsForm) {
-      const sponsorsArray = this.sponsorsForm.get('sponsors') as FormArray;
-      for (let i = 0; i < sponsorsArray.length; i++) {
-        sponsorsArray.at(i).reset();
+    if (this.refereesForm) {
+      const refereesArray = this.refereesForm.get('referees') as FormArray;
+      for (let i = 0; i < refereesArray.length; i++) {
+        refereesArray.at(i).reset();
       }
     }
     this.uploadedFiles = { certificates: [] };
@@ -1177,13 +1422,13 @@ export class FormM1Component implements OnInit {
       yPosition += sectionGap;
       checkNewPage();
 
-      // Sponsors Section
-      addWrappedText('SPONSORS', 12, true);
-      const sponsors = this.sponsorsForm.get('sponsors')?.value || [];
-      sponsors.forEach((sponsor: any, index: number) => {
-        addWrappedText(`Sponsor ${index + 1}:`, 11, true);
-        addWrappedText(`  Name: ${sponsor.name}`);
-        addWrappedText(`  Email: ${sponsor.email}`);
+      // Referees Section
+      addWrappedText('REFEREES', 12, true);
+      const referees = this.refereesForm.get('referees')?.value || [];
+      referees.forEach((referee: any, index: number) => {
+        addWrappedText(`Referee ${index + 1}:`, 11, true);
+        addWrappedText(`  Name: ${referee.name}`);
+        addWrappedText(`  Email: ${referee.email}`);
       });
       yPosition += sectionGap;
       checkNewPage();
@@ -1256,8 +1501,8 @@ export class FormM1Component implements OnInit {
       agreeTerms: [false, Validators.requiredTrue],
     });
 
-    this.sponsorsForm = this.fb.group({
-      sponsors: this.fb.array([this.createSponsorGroup(), this.createSponsorGroup(), this.createSponsorGroup()]),
+    this.refereesForm = this.fb.group({
+      referees: this.fb.array([this.createRefereeGroup(), this.createRefereeGroup(), this.createRefereeGroup()]),
     });
   }
 
@@ -1280,7 +1525,7 @@ export class FormM1Component implements OnInit {
     });
   }
 
-  createSponsorGroup(): FormGroup {
+  createRefereeGroup(): FormGroup {
     return this.fb.group({
       name: ['', Validators.required],
       email: ['', [Validators.required, Validators.email]],
@@ -1295,8 +1540,8 @@ export class FormM1Component implements OnInit {
     return this.experienceForm.get('experience') as FormArray;
   }
 
-  get sponsorsArray(): FormArray {
-    return this.sponsorsForm.get('sponsors') as FormArray;
+  get refereesArray(): FormArray {
+    return this.refereesForm.get('referees') as FormArray;
   }
 
   addEducation(): void {
@@ -1315,14 +1560,14 @@ export class FormM1Component implements OnInit {
     this.experienceArray.removeAt(index);
   }
 
-  addSponsor(): void {
-    if (this.sponsorsArray.length < 3) {
-      this.sponsorsArray.push(this.createSponsorGroup());
+  addReferee(): void {
+    if (this.refereesArray.length < 3) {
+      this.refereesArray.push(this.createRefereeGroup());
     }
   }
 
-  removeSponsor(index: number): void {
-    this.sponsorsArray.removeAt(index);
+  removeReferee(index: number): void {
+    this.refereesArray.removeAt(index);
   }
 
   onGradeChange(): void {
@@ -1332,6 +1577,9 @@ export class FormM1Component implements OnInit {
     const exchangeRate = 0.015;
     this.estimatedFee = Math.round(baseFeeUSD / exchangeRate);
     this.selectedGradeRequirements = this.getGradeRequirements(grade);
+    
+    // Fetch detailed fee breakdown for local applicants
+    this.feeBreakdown = getFeeBreakdown(grade, 'local');
   }
 
   /**
@@ -1555,7 +1803,7 @@ export class FormM1Component implements OnInit {
   }
 
   submitApplication(): void {
-    if (!this.personalParticularsForm.valid || !this.gradeForm.valid || !this.sponsorsForm.valid) {
+    if (!this.personalParticularsForm.valid || !this.gradeForm.valid || !this.refereesForm.valid) {
       this.errorMessage = 'Please complete all required fields.';
       return;
     }
@@ -1585,7 +1833,7 @@ export class FormM1Component implements OnInit {
       experience: this.experienceForm.get('experience')?.value,
       chosenGrade: this.gradeForm.get('chosenGrade')?.value,
       chosenSpecialistDivision: this.gradeForm.get('chosenSpecialistDivision')?.value,
-      sponsors: this.sponsorsForm.get('sponsors')?.value,
+      referees: this.refereesForm.get('referees')?.value,
     };
 
     console.log('=== Submitting Application ===');
@@ -1605,7 +1853,7 @@ export class FormM1Component implements OnInit {
     formData.append('experience', JSON.stringify(applicationData.experience));
     formData.append('chosenGrade', applicationData.chosenGrade);
     formData.append('chosenSpecialistDivision', applicationData.chosenSpecialistDivision);
-    formData.append('sponsors', JSON.stringify(applicationData.sponsors));
+    formData.append('sponsors', JSON.stringify(applicationData.referees));
     
     // Add files
     if (this.uploadedFiles.nationalIdCopy) {
@@ -1688,10 +1936,13 @@ import { MAT_DIALOG_DATA } from '@angular/material/dialog';
       <div class="success-icon">✓</div>
       <h2>Application Submitted Successfully!</h2>
       <p class="message">
-        Your application has been submitted and is now under review.
+        Your membership application has been submitted and is now under review.
       </p>
       <p class="submessage">
         You will receive confirmation emails at your registered email address.
+      </p>
+      <p class="member-note">
+        Upon approval, you will be recognized as a member of the Zimbabwe Institution of Engineers.
       </p>
       <p class="info-text">
         <strong>Application ID:</strong> {{ data?.applicationId }}
@@ -1736,6 +1987,16 @@ import { MAT_DIALOG_DATA } from '@angular/material/dialog';
       color: #666;
       font-size: 14px;
       margin: 10px 0;
+    }
+
+    .member-note {
+      color: #B99532;
+      font-weight: 600;
+      font-size: 14px;
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #fafaf5;
+      border-radius: 4px;
     }
 
     .info-text {

@@ -215,6 +215,152 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const createExpatriateApplication = async (req: AuthRequest, res: Response) => {
+  try {
+    console.log('=== Creating Expatriate Application ===');
+    console.log('User ID:', req.userId);
+    
+    // Verify user is authenticated
+    if (!req.userId) {
+      console.error('User ID is missing - authentication may have failed');
+      return res.status(401).json({ message: 'User authentication required. Please log in.' });
+    }
+    
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Parse FormData fields
+    let personalParticulars: any;
+    let education: any;
+    let experience: any;
+    let membershipGrade: string;
+    let companyRecommendation: any;
+
+    if (req.body.personalParticulars && typeof req.body.personalParticulars === 'string') {
+      // FormData payload
+      console.log('Parsing expatriate FormData payload');
+      personalParticulars = JSON.parse(req.body.personalParticulars);
+      education = req.body.education ? JSON.parse(req.body.education) : {};
+      experience = req.body.experience ? JSON.parse(req.body.experience) : {};
+      membershipGrade = req.body.membershipGrade;
+      companyRecommendation = req.body.companyRecommendation ? JSON.parse(req.body.companyRecommendation) : {};
+    } else {
+      // Regular JSON payload
+      console.log('Parsing expatriate JSON payload');
+      personalParticulars = req.body.personalParticulars;
+      education = req.body.education || {};
+      experience = req.body.experience || {};
+      membershipGrade = req.body.membershipGrade;
+      companyRecommendation = req.body.companyRecommendation || {};
+    }
+
+    console.log('Parsed Expatriate Data:', { 
+      firstName: personalParticulars?.firstName,
+      lastName: personalParticulars?.lastName,
+      membershipGrade,
+      companyName: companyRecommendation?.companyName
+    });
+
+    // Validate required fields
+    if (!personalParticulars || !personalParticulars.firstName || !personalParticulars.lastName) {
+      return res.status(400).json({ message: 'Personal particulars required' });
+    }
+
+    if (!membershipGrade) {
+      return res.status(400).json({ message: 'Membership grade is required' });
+    }
+
+    if (!companyRecommendation || !companyRecommendation.companyName) {
+      return res.status(400).json({ message: 'Company recommendation details required' });
+    }
+
+    // Get membership grade to verify it exists
+    const grade = await MembershipGrade.findOne({ gradeName: membershipGrade });
+    if (!grade) {
+      return res.status(400).json({ message: 'Invalid membership grade' });
+    }
+
+    // Calculate application fee
+    const exchangeRate = parseFloat(process.env.EXCHANGE_RATE || '0.015');
+    const applicationFee = calculateApplicationFee(grade.baseFee, exchangeRate);
+
+    // Create expatriate application (no sponsors/referees)
+    const application = new Application({
+      userId: req.userId,
+      personalParticulars,
+      education: education || {},
+      experience: experience || {},
+      chosenGrade: membershipGrade,
+      applicationFee,
+      applicationType: 'expatriate',
+      documents: {
+        companyRecommendationLetterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+      },
+      uploadedFiles: {
+        companyRecommendationLetterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+      },
+      companyRecommendation: {
+        companyName: companyRecommendation.companyName,
+        contactPerson: companyRecommendation.contactPerson,
+        letterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+      },
+      sponsors: [], // No sponsors for expatriates
+      referees: [], // No referees for expatriates
+      userSummary: `Expatriate Application: ${personalParticulars.firstName} ${personalParticulars.lastName} applied for ${membershipGrade}`,
+    });
+
+    // Auto-evaluate grade and division using services
+    application.suggestedGrade = GradingService.evaluateGrade(application);
+    application.suggestedDivision = DivisionMappingService.assignDivision(
+      education?.fieldOfEngineering || 'General'
+    );
+
+    await application.save();
+
+    // Send confirmation email to applicant (no referees/sponsors emails needed for expatriates)
+    await sendApplicationConfirmationEmail(
+      personalParticulars.email,
+      `${personalParticulars.firstName} ${personalParticulars.lastName}`,
+      application._id.toString()
+    );
+
+    // Update status to Submitted
+    application.status = 'Submitted';
+    await application.save();
+
+    res.status(201).json({
+      message: 'Expatriate application created successfully',
+      id: application._id,
+      application: {
+        id: application._id,
+        status: application.status,
+        applicationFee,
+        applicationType: 'expatriate',
+      },
+    });
+  } catch (error: any) {
+    console.error('=== Error creating expatriate application ===');
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    console.error('Full error:', error);
+    
+    // Clean up uploaded files if application creation fails
+    if ((req.files as any)?.companyRecommendation?.[0]?.filename) {
+      deleteUploadedFile((req.files as any).companyRecommendation[0].filename);
+    }
+    
+    const errorResponse = {
+      message: error?.message || 'Failed to create expatriate application',
+      error: error?.message || 'Unknown error',
+    };
+    
+    res.status(500).json(errorResponse);
+  }
+};
+
 export const getApplicationByUser = async (req: AuthRequest, res: Response) => {
   try {
     const applications = await Application.find({ userId: req.userId });
@@ -773,7 +919,7 @@ export const sendInterviewNotification = async (req: AuthRequest, res: Response)
 };
 
 // Update sponsors and send emails
-export const updateSponsors = async (req: AuthRequest, res: Response) => {
+export const updateReferees = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { sponsors } = req.body;

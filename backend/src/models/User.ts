@@ -4,10 +4,14 @@ import bcrypt from 'bcryptjs';
 export interface IUser extends Document {
   email: string;
   password_hash: string;
-  role: 'Applicant' | 'Admin';
+  role: 'Applicant' | 'Admin' | 'SuperAdmin';
+  country: string;
+  applicationType: 'local' | 'expatriate';
+  userClassification: 'local_applicant' | 'expatriate_applicant' | 'admin' | 'superadmin';
   createdAt: Date;
   updatedAt: Date;
   comparePassword(password: string): Promise<boolean>;
+  getClassification(): string;
 }
 
 const userSchema = new Schema<IUser>(
@@ -25,8 +29,23 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['Applicant', 'Admin'],
+      enum: ['Applicant', 'Admin', 'SuperAdmin'],
       default: 'Applicant',
+    },
+    country: {
+      type: String,
+      sparse: true,
+    },
+    applicationType: {
+      type: String,
+      enum: ['local', 'expatriate'],
+      sparse: true,
+    },
+    userClassification: {
+      type: String,
+      enum: ['local_applicant', 'expatriate_applicant', 'admin', 'superadmin'],
+      required: true,
+      default: 'local_applicant',
     },
   },
   { timestamps: true }
@@ -48,6 +67,14 @@ userSchema.pre('save', async function (next) {
 // Method to compare passwords
 userSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
   return bcrypt.compare(password, this.password_hash);
+};
+
+// Method to get user classification
+userSchema.methods.getClassification = function (): string {
+  if (this.role === 'SuperAdmin') return 'superadmin';
+  if (this.role === 'Admin') return 'admin';
+  if (this.applicationType === 'expatriate') return 'expatriate_applicant';
+  return 'local_applicant';
 };
 
 export const User = mongoose.model<IUser>('User', userSchema);

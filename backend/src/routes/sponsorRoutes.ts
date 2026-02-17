@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { submitSponsorAppraisal, getSponsorAppraisal } from '../controllers/sponsorController';
+import { submitRefereeAppraisal, getRefereeAppraisal } from '../controllers/sponsorController';
 
 const router = Router();
 
@@ -17,7 +17,7 @@ const appraisalValidation = [
 ];
 
 // Routes
-router.get('/:token', getSponsorAppraisal);
-router.post('/:token/submit', appraisalValidation, submitSponsorAppraisal);
+router.get('/:token', getRefereeAppraisal);
+router.post('/:token/submit', appraisalValidation, submitRefereeAppraisal);
 
 export default router;

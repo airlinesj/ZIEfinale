@@ -164,6 +164,11 @@ class AdminVerificationService {
       return false;
     }
 
+    // Expatriate applicants cannot have Interview Required status
+    if (application.applicationType === 'expatriate' && newStatus === 'Interview Required') {
+      return false;
+    }
+
     // Check if transitioning from Rejected
     if (currentStatus === 'Rejected' && newStatus === 'Submitted') {
       // Allow re-submission only if within 24 hours of rejection

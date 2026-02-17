@@ -81,6 +81,7 @@ export interface IExperience {
 export interface IApplication extends Document {
   userId: mongoose.Types.ObjectId;
   userSummary: string;
+  applicationType: 'local' | 'expatriate';
   personalParticulars: {
     firstName: string;
     lastName: string;
@@ -111,6 +112,11 @@ export interface IApplication extends Document {
     nationalIdPath?: string;         // Path to uploaded National ID PDF
     certificatePaths: string[];      // Paths to uploaded Certificate PDFs
     technicalReportPath?: string;    // Path to uploaded Technical Report PDF
+    companyRecommendationLetterPath?: string;  // Path to company recommendation letter (expatriates only)
+  };
+  companyRecommendationLetter?: {
+    filePath?: string;               // Path to uploaded company recommendation letter
+    uploadedAt?: Date;               // When the letter was uploaded
   };
   paymentProof?: {
     filePath?: string;               // Path to uploaded payment proof file
@@ -144,6 +150,12 @@ const applicationSchema = new Schema<IApplication>(
     userSummary: {
       type: String,
       default: '',
+    },
+    applicationType: {
+      type: String,
+      enum: ['local', 'expatriate'],
+      required: true,
+      default: 'local',
     },
     personalParticulars: {
       firstName: { type: String, required: true },
@@ -215,6 +227,11 @@ const applicationSchema = new Schema<IApplication>(
       nationalIdPath: { type: String },
       certificatePaths: { type: [String], default: [] },
       technicalReportPath: { type: String },
+      companyRecommendationLetterPath: { type: String },
+    },
+    companyRecommendationLetter: {
+      filePath: { type: String },
+      uploadedAt: { type: Date },
     },
     paymentProof: {
       filePath: { type: String },
