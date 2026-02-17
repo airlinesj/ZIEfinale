@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, F
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { DocumentValidationService } from '../services/document-validation.service';
 import { getFeeBreakdown } from '../services/membership-fee.service';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -952,7 +953,8 @@ export class ExpatriateFormComponent implements OnInit {
     private applicationService: ApplicationService,
     private authService: AuthService,
     private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private docValidationService: DocumentValidationService
   ) {}
 
   ngOnInit(): void {
@@ -1040,6 +1042,38 @@ export class ExpatriateFormComponent implements OnInit {
     });
   }
 
+  applyCountrySpecificValidators(country: string): void {
+    const phoneControl = this.personalParticularsForm.get('phoneNumber');
+    if (phoneControl) {
+      phoneControl.setValidators([
+        Validators.required,
+        (control: AbstractControl): ValidationErrors | null => {
+          if (!control.value) {
+            return null;
+          }
+          const result = this.docValidationService.validatePhoneNumber(control.value, country);
+          return result.valid ? null : { invalidPhone: { message: result.error } };
+        }
+      ]);
+      phoneControl.updateValueAndValidity({ emitEvent: false });
+    }
+
+    const idControl = this.personalParticularsForm.get('idNumber');
+    if (idControl) {
+      idControl.setValidators([
+        Validators.required,
+        (control: AbstractControl): ValidationErrors | null => {
+          if (!control.value) {
+            return null;
+          }
+          const result = this.docValidationService.validateNationalId(control.value, country);
+          return result.valid ? null : { invalidId: { message: result.error } };
+        }
+      ]);
+      idControl.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
   populateCountryField(): void {
     this.authService.getCurrentUserObservable().subscribe({
       next: (user: any) => {
@@ -1048,6 +1082,8 @@ export class ExpatriateFormComponent implements OnInit {
             country: user.country,
           });
           this.personalParticularsForm.get('country')?.disable();
+          // Apply country-specific validators for phone and ID
+          this.applyCountrySpecificValidators(user.country);
         }
       },
       error: () => {
