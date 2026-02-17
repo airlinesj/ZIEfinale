@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, F
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
+import { DocumentValidationService } from '../services/document-validation.service';
 import { getFeeBreakdown } from '../services/membership-fee.service';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -1038,7 +1039,8 @@ export class FormM1Component implements OnInit {
     private applicationService: ApplicationService,
     private authService: AuthService,
     private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private docValidationService: DocumentValidationService
   ) {}
 
   ngOnInit(): void {
@@ -1150,6 +1152,11 @@ export class FormM1Component implements OnInit {
       // Personal Particulars
       if (application.personalParticulars) {
         this.personalParticularsForm.patchValue(application.personalParticulars);
+        // Apply country-specific validators based on nationality
+        const nationality = application.personalParticulars.nationality;
+        if (nationality) {
+          this.applyCountrySpecificValidators(nationality);
+        }
       }
 
       // Education
@@ -1242,6 +1249,11 @@ export class FormM1Component implements OnInit {
         const formData = JSON.parse(savedData);
         if (formData.personalParticulars) {
           this.personalParticularsForm.patchValue(formData.personalParticulars);
+          // Apply country-specific validators when personal particulars are loaded
+          const nationality = formData.personalParticulars.nationality;
+          if (nationality) {
+            this.applyCountrySpecificValidators(nationality);
+          }
         }
         if (formData.education && formData.education.education) {
           const educationArray = this.educationForm.get('education') as FormArray;
@@ -1504,6 +1516,49 @@ export class FormM1Component implements OnInit {
     this.refereesForm = this.fb.group({
       referees: this.fb.array([this.createRefereeGroup(), this.createRefereeGroup(), this.createRefereeGroup()]),
     });
+  }
+
+  /**
+   * Apply country-specific validators to phone and national ID fields
+   * This ensures validation rules match the user's country format requirements
+   */
+  applyCountrySpecificValidators(country: string): void {
+    if (!country) return;
+
+    const phoneControl = this.personalParticularsForm.get('phone');
+    const nationalIdControl = this.personalParticularsForm.get('nationalId');
+
+    if (phoneControl) {
+      // Update phone validator based on country
+      phoneControl.clearAsyncValidators();
+      phoneControl.setValidators([
+        Validators.required,
+        (control) => {
+          const result = this.docValidationService.validatePhoneNumber(control.value, country);
+          if (!result.valid) {
+            return { invalidPhone: result.error };
+          }
+          return null;
+        }
+      ]);
+      phoneControl.updateValueAndValidity();
+    }
+
+    if (nationalIdControl) {
+      // Update national ID validator based on country
+      nationalIdControl.clearAsyncValidators();
+      nationalIdControl.setValidators([
+        Validators.required,
+        (control) => {
+          const result = this.docValidationService.validateNationalId(control.value, country);
+          if (!result.valid) {
+            return { invalidNationalId: result.error };
+          }
+          return null;
+        }
+      ]);
+      nationalIdControl.updateValueAndValidity();
+    }
   }
 
   createEducationGroup(): FormGroup {
