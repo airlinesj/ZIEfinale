@@ -1,11 +1,13 @@
 # Document Validation Service - Usage Guide
 
 ## Overview
+
 The `DocumentValidationService` provides country-specific validation for national ID numbers and phone numbers. This ensures users enter data in the correct format for their country before form submission.
 
 ## Supported Countries
 
 The service currently supports validation rules for the following countries:
+
 - **Zimbabwe**: National ID (9 digits + 1 letter) or Passport (2 letters + 6-7 digits), Phone (+263 or 0 + 9 digits)
 - **South Africa**: ID (13 digits), Phone (+27 or 0 + 9 digits)
 - **Botswana**: ID (9 digits), Phone (+267 + 7-8 digits)
@@ -20,6 +22,7 @@ The service currently supports validation rules for the following countries:
 ## How to Use in Components
 
 ### 1. Import the Service
+
 ```typescript
 import { DocumentValidationService } from '../services/document-validation.service';
 
@@ -29,6 +32,7 @@ constructor(
 ```
 
 ### 2. Validate Single Values
+
 ```typescript
 // Validate National ID
 const idResult = this.docValidationService.validateNationalId('123456789A', 'Zimbabwe');
@@ -49,6 +53,7 @@ if (phoneResult.valid) {
 ```
 
 ### 3. Apply to Form Controls
+
 ```typescript
 // Update phone validator based on country
 const phoneControl = this.form.get('phone');
@@ -66,6 +71,7 @@ phoneControl?.updateValueAndValidity();
 ```
 
 ### 4. Get Format Hints
+
 ```typescript
 // Show user the expected format
 const idHint = this.docValidationService.getIdFormatHint('Zimbabwe');
@@ -92,12 +98,14 @@ this.applyCountrySpecificValidators('Zimbabwe');
 ## Example Validation Scenarios
 
 ### Zimbabwe
+
 - ✅ National ID: `123456789A`
 - ✅ Passport: `ZW123456`
 - ✅ Phone: `+263712345678` or `0712345678`
 - ❌ Phone: `712345678` (missing country code or leading 0)
 
 ### South Africa
+
 - ✅ National ID: `9301015800081` (13 digits)
 - ✅ Phone: `+27812345678` or `0812345678`
 - ❌ National ID: `93010158` (too short)
@@ -105,6 +113,7 @@ this.applyCountrySpecificValidators('Zimbabwe');
 ## Error Messages
 
 When validation fails, users receive:
+
 1. **Error Message**: Specific error about why the input is invalid
 2. **Hint**: User-friendly format example showing the correct pattern
 
