@@ -472,7 +472,7 @@ export class ApplicantDashboardComponent implements OnInit {
 
   logout(): void {
     console.log('🚪 Dashboard - User logging out');
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    // Use logoutAndNavigate to ensure complete state cleanup
+    this.authService.logoutAndNavigate();
   }
 }

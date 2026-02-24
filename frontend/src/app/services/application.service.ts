@@ -213,4 +213,20 @@ export class ApplicationService {
       data,
       { headers: this.getHeaders() }
     );
+  }
+
+  updateExpatriateAdmission(applicationId: string, admissionData: any): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/${applicationId}/expatriate-admission`,
+      admissionData,
+      { headers: this.getHeaders() }
+    );
+  }
+
+  confirmExpatriateAdmission(applicationId: string): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/${applicationId}/expatriate-admission`,
+      { status: 'admitted', message: 'Certificate approved by Super Admin' },
+      { headers: this.getHeaders() }
+    );
   }}

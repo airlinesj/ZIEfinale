@@ -34,8 +34,19 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
 };
 
 export const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
-  if (req.userRole !== 'Admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+  console.log('\n🔐 ADMIN MIDDLEWARE CHECK:');
+  console.log('  - User ID:', req.userId);
+  console.log('  - User Role:', req.userRole);
+  console.log('  - Is Admin?:', req.userRole === 'Admin');
+  console.log('  - Is SuperAdmin?:', req.userRole === 'SuperAdmin');
+  
+  if (req.userRole !== 'Admin' && req.userRole !== 'SuperAdmin') {
+    console.log('  ❌ REJECTED: Role is neither Admin nor SuperAdmin');
+    return res.status(403).json({ 
+      message: 'Admin access required',
+      debug: `Your role is '${req.userRole}', but only 'Admin' or 'SuperAdmin' can access this.`
+    });
   }
+  console.log('  ✅ ALLOWED: Admin/SuperAdmin role confirmed\n');
   next();
 };

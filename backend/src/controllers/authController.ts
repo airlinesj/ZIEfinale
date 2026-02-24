@@ -144,23 +144,37 @@ export const login = async (req: AuthRequest, res: Response) => {
 
     const { email, password } = req.body;
     console.log('📧 Login attempt for:', email);
+    console.log('  - Password provided: ', !!password);
+    console.log('  - Password length:', password?.length);
 
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      console.warn('⚠ User not found:', email);
-      return res.status(401).json({ message: 'Invalid credentials' });
+      console.warn('⚠️ ❌ User not found:', email);
+      console.warn('  - Attempted email:', email);
+      console.warn('  - Check if user exists in database');
+      return res.status(401).json({ 
+        message: 'Invalid credentials',
+        debug: `User not found with email: ${email}`
+      });
     }
 
     console.log('✓ User found:', email);
     console.log('  - Current applicationType:', user.applicationType);
     console.log('  - Current country:', user.country);
+    console.log('  - Role:', user.role);
+    console.log('  - Password hash exists:', !!user.password_hash);
 
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      console.warn('⚠ Invalid password for:', email);
-      return res.status(401).json({ message: 'Invalid credentials' });
+      console.warn('⚠️ ❌ Invalid password for:', email);
+      console.warn('  - Password provided has', password?.length, 'characters');
+      console.warn('  - Stored hash length:', user.password_hash?.length);
+      return res.status(401).json({ 
+        message: 'Invalid credentials',
+        debug: `Invalid password for user: ${email}`
+      });
     }
 
     console.log('✓ Password valid');

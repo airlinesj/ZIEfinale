@@ -152,66 +152,120 @@ export class AuthService {
   }
 
   logout(): void {
-    console.log('🚪 Logging out user');
+    console.log('🚪 Logging out user - Starting comprehensive cleanup');
+    
+    // Clear all auth-related localStorage items
     localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('applicationFormData');
+    localStorage.removeItem('userClassification');
+    localStorage.removeItem('dashboardInfo');
+    
+    // Clear all possible session keys
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('auth') || key.includes('user') || key.includes('session') || key.includes('classification'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Clear session storage completely
+    sessionStorage.clear();
+    
+    // Clear all BehaviorSubjects to ensure clean state
     this.currentUserSubject.next(null);
-    this.roleBasedDashboardService.clearClassification();
+    // Use forceResetAllState to ensure BehaviorSubject instances are fresh
+    this.roleBasedDashboardService.forceResetAllState();
+    
+    console.log('✓ Logout complete - all state cleared');
   }
 
   logoutAndNavigate(): void {
+    console.log('🚪 Logging out and navigating - Starting full cleanup');
+    
     // Clear session data
     this.logout();
     
+    // Additionally clear any Angular routing state
+    try {
+      // Reset router state
+      this.router.resetConfig(this.router.config);
+    } catch (e) {
+      console.log('Router reset not needed');
+    }
+    
     // Clear browser history to prevent back navigation to app pages
-    // This replaces the current history entry with a new one
     window.history.replaceState(null, '', window.location.origin + '/');
     
-    // Navigate to landing page
-    this.router.navigate(['/'], { replaceUrl: true }).catch(() => {
-      // Fallback: if navigation fails, do a hard page reload
-      window.location.href = '/';
-    });
+    console.log('🚪 Performing hard refresh to clear all client-side state');
+    // Use hard refresh to ensure complete state cleanup
+    // This is important for account switching between different user types
+    window.location.href = '/login';
   }
 
   private setCurrentUser(response: AuthResponse): void {
     const user = response.user;
     
     console.log('\n=== AUTH.SERVICE.setCurrentUser ===');
+    console.log('BEFORE: Clearing any previous user state');
+    
+    // Ensure we start fresh - clear any previous session completely
+    // Use forceResetAllState to ensure old BehaviorSubject values don't persist
+    localStorage.removeItem('userClassification');
+    localStorage.removeItem('dashboardInfo');
+    this.roleBasedDashboardService.forceResetAllState();
+    
     console.log('Setting current user:');
     console.log('  - email:', user.email);
     console.log('  - applicationType:', user.applicationType);
     console.log('  - country:', user.country);
     console.log('  - role:', user.role);
     
-    // Validate that applicationType is set for Applicants
-    if (user.role === 'Applicant' && !user.applicationType) {
-      console.error('❌ ERROR: Applicant registered without applicationType! This should not happen.');
-      console.error('  - User:', user.email);
-      console.error('  - Country:', user.country);
-      console.error('  - Please check backend registration logic');
-      // Do not silently default to 'local' - let the admin know there's a data issue
-      throw new Error('Critical data error: Applicant missing applicationType. Please contact support.');
-    }
-    
-    // Validate country for applicants
-    if (user.role === 'Applicant' && !user.country) {
-      console.error('❌ ERROR: Applicant registered without country! This should not happen.');
-      throw new Error('Critical data error: Applicant missing country. Please contact support.');
+    // Validate and fix applicationType for Applicants
+    if (user.role === 'Applicant') {
+      // If missing applicationType, derive from country
+      if (!user.applicationType && user.country) {
+        console.warn('⚠ Applicant missing applicationType, deriving from country:', user.country);
+        user.applicationType = user.country === 'Zimbabwe' ? 'local' : 'expatriate';
+      }
+      // If still missing applicationType, default to local
+      if (!user.applicationType) {
+        console.warn('⚠ Applicant missing both applicationType and country, defaulting to local');
+        user.applicationType = 'local';
+      }
+      // Ensure country is set
+      if (!user.country) {
+        console.warn('⚠ Applicant missing country, defaulting to Zimbabwe');
+        user.country = 'Zimbabwe';
+      }
     }
     
     console.log('✓ Validations passed, storing user');
     console.log('  - applicationType to store:', user.applicationType);
     console.log('  - country to store:', user.country);
     
+    // Store token and user
     localStorage.setItem('token', response.token);
     localStorage.setItem('currentUser', JSON.stringify(user));
     this.currentUserSubject.next(user);
     
+    // NOW set the new classification with fresh data
+    console.log('✓ Storing classification');
+    if (response.classification && response.dashboardInfo) {
+      this.roleBasedDashboardService.setClassification(
+        response.classification,
+        response.dashboardInfo
+      );
+    } else {
+      console.warn('⚠ No classification in response, dashboard service will be empty');
+    }
+    
     console.log('✓ Emitted to currentUser$ BehaviorSubject');
     console.log('  - currentUser$.value applicationType:', this.currentUserSubject.value?.applicationType);
-    console.log('  - currentUser$.value country:', this.currentUserSubject.value?.country, '\n');
+    console.log('  - currentUser$.value country:', this.currentUserSubject.value?.country);
+    console.log('  - Classification stored:', response.classification?.classification, '\n');
   }
 
   private getUserFromStorage(): any {

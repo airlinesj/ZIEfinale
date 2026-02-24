@@ -49,13 +49,28 @@ export const uploadPDF = multer({
 });
 
 /**
- * Middleware for handling multiple PDF uploads
- * Accepts: nationalIdCopy, certificateFiles, technicalReport
+ * Middleware for handling multiple PDF uploads and FormData fields
+ * Accepts files: nationalIdCopy, certificateFiles, technicalReport, letterFile
+ * Also accepts FormData text fields: personalParticulars, education, experience, membershipGrade, etc.
  */
 export const multipleUploadPDF = uploadPDF.fields([
   { name: 'nationalIdCopy', maxCount: 1 },
   { name: 'certificateFiles', maxCount: 5 }, // Allow up to 5 certificate files
   { name: 'technicalReport', maxCount: 1 },
+  { name: 'letterFile', maxCount: 1 }, // Company recommendation letter for expatriates
+  // Text fields (non-file fields from FormData)
+  { name: 'personalParticulars', maxCount: 1 },
+  { name: 'education', maxCount: 1 },
+  { name: 'experience', maxCount: 1 },
+  { name: 'membershipGrade', maxCount: 1 },
+  { name: 'chosenGrade', maxCount: 1 },
+  { name: 'chosenSpecialistDivision', maxCount: 1 },
+  { name: 'companyRecommendation', maxCount: 1 },
+  { name: 'applicationType', maxCount: 1 },
+  { name: 'apprenticeReferee', maxCount: 1 },
+  { name: 'sponsors', maxCount: 1 },
+  { name: 'referees', maxCount: 1 },
+  { name: 'educationCertificateFiles', maxCount: 1 },
 ]);
 
 /**

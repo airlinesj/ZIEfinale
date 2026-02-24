@@ -11,10 +11,15 @@ import { CommonModule } from '@angular/common';
   template: `
     <div class="redirect-container">
       <div class="redirect-card">
-        <div class="loader"></div>
+        <div *ngIf="!errorMessage" class="loader"></div>
         <h2>{{ statusMessage }}</h2>
-        <p>Redirecting to {{ destination }}...</p>
-        <p class="classification-info">Classification: {{ userClassification }}</p>
+        <p *ngIf="!errorMessage">Redirecting to {{ destination }}...</p>
+        <p class="classification-info" *ngIf="!errorMessage">Classification: {{ userClassification }}</p>
+        <div *ngIf="errorMessage" class="error-box">
+          <h3>Authentication Error</h3>
+          <p>{{ errorMessage }}</p>
+          <p style="font-size: 12px; margin-top: 15px;">Please <a (click)="goToLogin()" style="cursor: pointer; color: #004A59; text-decoration: underline;">return to login</a> and try again.</p>
+        </div>
       </div>
     </div>
   `,
@@ -69,12 +74,32 @@ import { CommonModule } from '@angular/common';
       margin-top: 20px;
       font-style: italic;
     }
+
+    .error-box {
+      background-color: #ffebee;
+      border: 2px solid #c62828;
+      border-radius: 6px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .error-box h3 {
+      color: #c62828;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    .error-box p {
+      color: #721c24;
+      margin: 10px 0;
+    }
   `],
 })
 export class LoginRedirectComponent implements OnInit, OnDestroy {
   statusMessage = 'Processing login...';
   destination = 'your dashboard';
   userClassification = 'loading...';
+  errorMessage = '';
   private navigationTimeout: any;
 
   constructor(
@@ -87,10 +112,33 @@ export class LoginRedirectComponent implements OnInit, OnDestroy {
     console.log('\n=== LOGIN REDIRECT COMPONENT ===');
     console.log('Component initialized');
     
+    try {
+    
+    // Get the current user to verify we have fresh login data
+    const currentUser = this.authService.getCurrentUser();
+    console.log('Current user from auth service:', currentUser?.email);
+    console.log('Current user role:', currentUser?.role);
+    
+    // Verify we actually have a logged-in user
+    if (!currentUser || !currentUser.email) {
+      console.error('❌ No user found after login - authentication may have failed');
+      this.errorMessage = 'Authentication failed. No user data found. Please try logging in again.';
+      this.statusMessage = 'Authentication Error';
+      return;
+    }
+    
     // Set a hard timeout - if we haven't navigated within 3 seconds, force navigation
     this.navigationTimeout = setTimeout(() => {
-      console.warn('⚠ Timeout: No classification found, forcing navigation to /dashboard');
-      this.router.navigate(['/dashboard']);
+      console.warn('⚠ Timeout: Navigation taking too long, forcing redirect');
+      if (currentUser?.role === 'SuperAdmin') {
+        this.router.navigate(['/super-admin-dashboard'], { replaceUrl: true });
+      } else if (currentUser?.role === 'Admin') {
+        this.router.navigate(['/admin-dashboard'], { replaceUrl: true });
+      } else if (currentUser?.role === 'Applicant') {
+        this.router.navigate(['/dashboard'], { replaceUrl: true });
+      } else {
+        this.router.navigate(['/dashboard'], { replaceUrl: true });
+      }
     }, 3000);
     
     // Get the classification that should have been set by auth.service
@@ -101,13 +149,13 @@ export class LoginRedirectComponent implements OnInit, OnDestroy {
     console.log('  - dashboard:', classification?.dashboard);
     console.log('  - displayName:', classification?.displayName);
     
-    if (classification) {
+    if (classification && classification.classification) {
       console.log('✓ Classification found:', classification.classification);
       this.userClassification = classification.classification;
       this.destination = this.getDashboardName(classification.classification);
       this.statusMessage = classification.displayName + ' - Redirecting...';
       
-      // Determine dashboard path - all applicants go to /dashboard
+      // Determine dashboard path based on classification
       let dashboardPath = classification.dashboard;
       if (classification.classification === 'expatriate_applicant' || 
           classification.classification === 'local_applicant') {
@@ -128,16 +176,56 @@ export class LoginRedirectComponent implements OnInit, OnDestroy {
       // Redirect after a short delay for visual feedback
       this.navigationTimeout = setTimeout(() => {
         console.log('🚀 Navigating to:', dashboardPath);
-        this.router.navigate([dashboardPath]).catch(err => {
+        this.router.navigate([dashboardPath], { replaceUrl: true }).catch(err => {
           console.error('Navigation error:', err);
           // Fallback navigation
-          this.router.navigate(['/dashboard']);
+          this.router.navigate(['/dashboard'], { replaceUrl: true });
         });
       }, 500);
     } else {
-      console.warn('⚠ No classification found, will redirect to /dashboard after timeout');
-      this.userClassification = 'unknown';
+      console.warn('⚠ No classification found, will use user role fallback');
+      this.userClassification = currentUser?.role || 'unknown';
+      
+      // Fallback: use user role to determine dashboard
+      if (currentUser) {
+        let dashboardPath = '/dashboard';
+        if (currentUser.role === 'SuperAdmin') {
+          dashboardPath = '/super-admin-dashboard';
+          this.destination = 'Super Admin Dashboard';
+          this.statusMessage = 'Super Administrator - Redirecting...';
+        } else if (currentUser.role === 'Admin') {
+          dashboardPath = '/admin-dashboard';
+          this.destination = 'Admin Dashboard';
+          this.statusMessage = 'Administrator - Redirecting...';
+        } else {
+          this.destination = 'Dashboard';
+          this.statusMessage = 'Applicant - Redirecting...';
+        }
+        
+        console.log('Using fallback dashboard:', dashboardPath);
+        
+        if (this.navigationTimeout) {
+          clearTimeout(this.navigationTimeout);
+        }
+        
+        this.navigationTimeout = setTimeout(() => {
+          console.log('🚀 Navigating (fallback) to:', dashboardPath);
+          this.router.navigate([dashboardPath], { replaceUrl: true }).catch(err => {
+            console.error('Navigation error (fallback):', err);
+            this.router.navigate(['/dashboard'], { replaceUrl: true });
+          });
+        }, 500);
+      }
     }
+    } catch (error: any) {
+      console.error('❌ Error in login redirect:', error);
+      this.statusMessage = 'Error Processing Login';
+      this.errorMessage = error?.message || 'An unexpected error occurred during authentication. Please try logging in again.';
+    }
+  }
+
+  goToLogin(): void {
+    this.router.navigate(['/login'], { replaceUrl: true });
   }
 
   ngOnDestroy(): void {

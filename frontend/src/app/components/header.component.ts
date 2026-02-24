@@ -266,9 +266,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.isLoggedIn = false;
-    this.mobileMenuOpen = false;
-    this.router.navigate(['/login']);
+    console.log('🚪 Header: Initiating logout');
+    // Use the comprehensive logoutAndNavigate method that performs hard refresh
+    // This ensures complete state cleanup for account switching
+    this.authService.logoutAndNavigate();
   }
 }

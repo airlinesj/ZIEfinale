@@ -1,21 +1,24 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, Inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApplicationService } from '../services/application.service';
 import { AuthService } from '../services/auth.service';
 import { DocumentValidationService } from '../services/document-validation.service';
+import { FormValidationService } from '../services/form-validation.service';
+import { FormPersistenceService } from '../services/form-persistence.service';
 import { getFeeBreakdown } from '../services/membership-fee.service';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { DynamicValidationModalComponent } from '../components/dynamic-validation-modal.component';
 
 // Custom Validators
 class CustomValidators {
@@ -24,7 +27,9 @@ class CustomValidators {
       return null; // allow empty value to be validated by required validator
     }
     const phoneValue = String(control.value).replace(/\D/g, ''); // Remove all non-digits
-    if (phoneValue.length !== 10) {
+    // Accept phone numbers with 9-15 digits to accommodate various formats (local and international)
+    // The country-specific validator will enforce exact format requirements
+    if (phoneValue.length < 9 || phoneValue.length > 15) {
       return { invalidPhone: true };
     }
     return null;
@@ -109,7 +114,7 @@ class CustomValidators {
                 <input
                   type="tel"
                   formControlName="phone"
-                  placeholder="Enter 10-digit phone number"
+                  placeholder="Enter phone number (with or without country code)"
                   class="form-input"
                 />
                 <div class="error-message" *ngIf="personalParticularsForm.get('phone')?.errors && (personalParticularsForm.get('phone')?.touched || personalParticularsForm.get('phone')?.dirty)">
@@ -130,6 +135,15 @@ class CustomValidators {
                   <span *ngIf="personalParticularsForm.get('nationalId')?.errors?.['required']">National ID is required</span>
                   <span *ngIf="personalParticularsForm.get('nationalId')?.errors?.['invalidNationalId']">National ID must be in format: 63-2345678 D 48</span>
                 </div>
+              </div>
+
+              <div class="verification-section">
+                <button type="button" (click)="openVerificationModal()" class="btn-verify">
+                  🔐 Verify Your National ID & Experience
+                </button>
+                <p class="verification-help">
+                  Use this to quickly verify your National ID and years of experience
+                </p>
               </div>
 
               <div class="form-group">
@@ -889,22 +903,92 @@ class CustomValidators {
       }
     }
 
+    .overlay-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 9998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .error-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       color: #d32f2f;
-      margin-top: 15px;
-      padding: 10px;
+      padding: 20px 25px;
       background-color: #ffebee;
-      border: 1px solid #d32f2f;
-      border-radius: 4px;
+      border: 2px solid #d32f2f;
+      border-radius: 6px;
+      z-index: 9999;
+      box-shadow: 0 4px 16px rgba(211, 47, 47, 0.3);
+      animation: slideDown 0.3s ease-out;
     }
 
     .success-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       color: #388e3c;
-      margin-top: 15px;
-      padding: 10px;
+      padding: 20px 25px;
       background-color: #e8f5e9;
-      border: 1px solid #388e3c;
+      border: 2px solid #388e3c;
+      border-radius: 6px;
+      z-index: 9999;
+      box-shadow: 0 4px 16px rgba(56, 142, 60, 0.3);
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+    }
+
+    .verification-section {
+      background-color: #e3f2fd;
+      border-left: 4px solid #004A59;
+      padding: 15px;
       border-radius: 4px;
+      margin: 20px 0;
+    }
+
+    .btn-verify {
+      background-color: #004A59;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      font-size: 14px;
+    }
+
+    .btn-verify:hover {
+      background-color: #003039;
+      box-shadow: 0 2px 8px rgba(0, 74, 89, 0.3);
+    }
+
+    .verification-help {
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+      margin-bottom: 0;
+      font-style: italic;
     }
 
     .info-text {
@@ -1003,13 +1087,14 @@ class CustomValidators {
     }
   `]
 })
-export class FormM1Component implements OnInit {
+export class FormM1Component implements OnInit, OnDestroy {
   personalParticularsForm!: FormGroup;
   educationForm!: FormGroup;
   experienceForm!: FormGroup;
   gradeForm!: FormGroup;
   refereesForm!: FormGroup;
   isSubmitting = false;
+  private submissionDialogRef: MatDialogRef<SubmissionSuccessDialog> | null = null;
   errorMessage = '';
   successMessage = '';
   estimatedFee = 0;
@@ -1040,7 +1125,9 @@ export class FormM1Component implements OnInit {
     private authService: AuthService,
     private router: Router,
     private dialog: MatDialog,
-    private docValidationService: DocumentValidationService
+    private docValidationService: DocumentValidationService,
+    private formValidationService: FormValidationService,
+    private formPersistenceService: FormPersistenceService
   ) {}
 
   ngOnInit(): void {
@@ -1100,11 +1187,29 @@ export class FormM1Component implements OnInit {
     
     // Initial load - check for rejected applications
     this.loadApplicationsAndFormData();
+
+    // Watch for nationality changes and update validators
+    const nationalityControl = this.personalParticularsForm.get('nationality');
+    if (nationalityControl) {
+      nationalityControl.valueChanges.subscribe((nationality: string) => {
+        if (nationality) {
+          this.applyCountrySpecificValidators(nationality);
+        }
+      });
+    }
     
     // Auto-save form data every 5 seconds
     setInterval(() => {
       this.saveFormData();
     }, 5000);
+  }
+
+  ngOnDestroy(): void {
+    // Close any open dialogs on component destruction
+    if (this.submissionDialogRef) {
+      this.submissionDialogRef.close();
+      this.submissionDialogRef = null;
+    }
   }
 
   /**
@@ -1234,8 +1339,11 @@ export class FormM1Component implements OnInit {
         grade: this.gradeForm?.value,
         sponsors: this.refereesForm?.value,
       };
+      // Save to localStorage using persistence service
+      this.formPersistenceService.saveFormData('m1-form', formData);
+      // Also save to local storage for backward compatibility
       localStorage.setItem('applicationFormData', JSON.stringify(formData));
-      console.log('Form data saved to localStorage');
+      console.log('✅ Form data saved to persistence service');
     }
   }
 
@@ -1340,7 +1448,12 @@ export class FormM1Component implements OnInit {
     }
     this.uploadedFiles = { certificates: [] };
     this.uploadedFileNames = { certificates: [] };
-    console.log('All form fields cleared');
+    
+    // Clear form data from persistence service
+    this.formPersistenceService.clearFormData('m1-form');
+    localStorage.removeItem('applicationFormData');
+    
+    console.log('✅ All form fields cleared and persistence data removed');
   }
 
   /**
@@ -1637,6 +1750,47 @@ export class FormM1Component implements OnInit {
     this.feeBreakdown = getFeeBreakdown(grade, 'local');
   }
 
+  openVerificationModal(): void {
+    const personalParticulars = this.personalParticularsForm.value;
+    const yearsOfExperience = this.experienceForm.get('experience')?.value?.[0]?.yearsOfExperience;
+
+    this.dialog.open(DynamicValidationModalComponent, {
+      width: '500px',
+      disableClose: false,
+      data: {
+        title: '🇿🇼 Zimbabwean Citizen Verification',
+        country: 'Zimbabwe',
+        yearsOfExperience: yearsOfExperience
+      }
+    }).afterClosed().subscribe(result => {
+      if (result) {
+        console.log('✓ Verification successful:', result);
+        
+        // Update Personal Particulars
+        this.personalParticularsForm.patchValue({
+          nationalId: result.idNumber
+        });
+        
+        // Update Experience - update the first entry
+        const experienceArray = this.experienceForm.get('experience') as FormArray;
+        if (experienceArray.length > 0) {
+          experienceArray.at(0).patchValue({
+            yearsOfExperience: result.yearsOfExperience
+          });
+        }
+
+        // Show success message
+        this.dialog.open(M1VerificationSuccessDialog, {
+          width: '400px',
+          disableClose: false,
+          data: {
+            yearsOfExperience: result.yearsOfExperience
+          }
+        });
+      }
+    });
+  }
+
   /**
    * Calculate auto-grade based on education level and years of experience
    * This is called when the user navigates to the Membership Grade step
@@ -1858,24 +2012,50 @@ export class FormM1Component implements OnInit {
   }
 
   submitApplication(): void {
-    if (!this.personalParticularsForm.valid || !this.gradeForm.valid || !this.refereesForm.valid) {
-      this.errorMessage = 'Please complete all required fields.';
-      return;
-    }
+    // Validate all forms
+    const validationResult = this.formValidationService.validateForms({
+      'Personal Particulars': this.personalParticularsForm,
+      'Grade & Division': this.gradeForm,
+      'Referees': this.refereesForm,
+    });
 
-    // Validate that required files are uploaded
+    // Check for missing files
+    const missingFiles: string[] = [];
     if (!this.uploadedFiles.nationalIdCopy) {
-      this.errorMessage = 'National ID Copy (PDF) is required. Please upload it before submitting.';
-      return;
+      missingFiles.push('National ID Copy (PDF)');
     }
-
     if (!this.uploadedFiles.certificates || this.uploadedFiles.certificates.length === 0) {
-      this.errorMessage = 'At least one Certificate (PDF) is required. Please upload it before submitting.';
-      return;
+      missingFiles.push('At least one Certificate (PDF)');
+    }
+    if (this.selectedGradeRequirements?.requiresTechnicalReport && !this.uploadedFiles.technicalReport) {
+      missingFiles.push('Technical Project Report (PDF)');
     }
 
-    if (this.selectedGradeRequirements?.requiresTechnicalReport && !this.uploadedFiles.technicalReport) {
-      this.errorMessage = 'Technical Project Report (PDF) is required for your grade selection. Please upload it before submitting.';
+    // Add file errors to validation result
+    if (missingFiles.length > 0) {
+      missingFiles.forEach(file => {
+        validationResult.missingFields.push({
+          fieldName: file.toLowerCase().replace(/\s+/g, ''),
+          displayName: file,
+          errors: ['This file is required'],
+          step: 'Required Documents',
+        });
+      });
+      validationResult.isValid = false;
+    }
+
+    // Show error dialog if validation fails
+    if (!validationResult.isValid) {
+      this.dialog.open(M1ValidationErrorDialog, {
+        width: '600px',
+        maxWidth: '90vw',
+        disableClose: false,
+        panelClass: 'centered-dialog',
+        data: {
+          errorFields: validationResult.missingFields,
+          summary: validationResult.summary,
+        },
+      });
       return;
     }
 
@@ -1892,12 +2072,9 @@ export class FormM1Component implements OnInit {
     };
 
     console.log('=== Submitting Application ===');
-    console.log('Application Data:', applicationData);
-    console.log('Files:', {
-      nationalIdCopy: this.uploadedFiles.nationalIdCopy?.name,
-      certificates: this.uploadedFiles.certificates?.map(c => c.name),
-      technicalReport: this.uploadedFiles.technicalReport?.name
-    });
+    console.log('Personal Particulars:', applicationData.personalParticulars);
+    console.log('Chosen Grade:', applicationData.chosenGrade);
+    console.log('Chosen Specialist Division:', applicationData.chosenSpecialistDivision);
 
     // Create FormData for file upload
     const formData = new FormData();
@@ -1908,7 +2085,7 @@ export class FormM1Component implements OnInit {
     formData.append('experience', JSON.stringify(applicationData.experience));
     formData.append('chosenGrade', applicationData.chosenGrade);
     formData.append('chosenSpecialistDivision', applicationData.chosenSpecialistDivision);
-    formData.append('sponsors', JSON.stringify(applicationData.referees));
+    formData.append('referees', JSON.stringify(applicationData.referees));
     
     // Add files
     if (this.uploadedFiles.nationalIdCopy) {
@@ -1934,25 +2111,28 @@ export class FormM1Component implements OnInit {
         // Clear saved form data on successful submission
         this.clearSavedFormData();
         
-        // Show dialog with email status
-        this.dialog.open(SubmissionSuccessDialog, {
-          width: '400px',
-          disableClose: false,
+        // Close any existing dialog
+        if (this.submissionDialogRef) {
+          this.submissionDialogRef.close();
+        }
+
+        // Show centered, self-dismissing notification
+        this.submissionDialogRef = this.dialog.open(SubmissionSuccessDialog, {
+          width: '100%',
+          maxWidth: '500px',
+          disableClose: true,
+          backdropClass: 'centered-dialog-backdrop',
+          panelClass: 'centered-dialog-panel',
           data: { 
             applicationId: response.application?.id || response._id || response.id,
             emailStatus: response.emailStatus
-          },
-          position: { top: '50%', left: '50%' },
-          panelClass: 'submission-dialog-panel'
+          }
         });
         
         // Log email status for debugging
         console.log('📧 Email Send Status:', response.emailStatus);
         
-        // Redirect to payment page instead of dashboard
-        setTimeout(() => {
-          this.router.navigate(['/payment']);
-        }, 3000);
+        // Dialog will handle its own navigation and auto-close
       },
       error: (error) => {
         this.isSubmitting = false;
@@ -1979,116 +2159,521 @@ export class FormM1Component implements OnInit {
 }
 
 // Success Dialog Component
-import { Inject } from '@angular/core';
-import { MAT_DIALOG_DATA } from '@angular/material/dialog';
-
 @Component({
   selector: 'app-submission-success-dialog',
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="dialog-content">
-      <div class="success-icon">✓</div>
-      <h2>Application Submitted Successfully!</h2>
-      <p class="message">
-        Your membership application has been submitted and is now under review.
-      </p>
-      <p class="submessage">
-        You will receive confirmation emails at your registered email address.
-      </p>
-      <p class="member-note">
-        Upon approval, you will be recognized as a member of the Zimbabwe Institution of Engineers.
-      </p>
-      <p class="info-text">
-        <strong>Application ID:</strong> {{ data?.applicationId }}
-      </p>
-      <p class="next-steps">
-        Sponsor appraisal emails sent: <strong *ngIf="data?.emailStatus?.totalSent">{{ data?.emailStatus?.totalSent }}/3 ✓</strong>
-        <span *ngIf="data?.emailStatus?.totalFailed > 0" style="color: #ff6b6b;"> ({{ data?.emailStatus?.totalFailed }} failed)</span>
-      </p>
-      <p class="next-steps">
-        Your sponsors will also receive appraisal requests via email.
-      </p>
-      <button mat-button (click)="onClose()" class="close-btn">Close</button>
+    <div class="success-notification-overlay" *ngIf="isVisible">
+      <div class="success-notification-center">
+        <button class="notification-close-btn" (click)="onClose()" aria-label="Close notification">✕</button>
+        <div class="notification-content">
+          <div class="success-icon">✓</div>
+          <h2>Application Submitted Successfully!</h2>
+          
+          <div class="success-details">
+            <p class="message">
+              Your membership application has been submitted and is now under review.
+            </p>
+            <p class="submessage">
+              You will receive confirmation emails at your registered email address.
+            </p>
+            <div class="info-box">
+              <p><strong>Application ID:</strong></p>
+              <p class="app-id">{{ data?.applicationId }}</p>
+              <p style="margin-top: 10px;"><strong>Sponsor Appraisals Sent:</strong></p>
+              <p>{{ data?.emailStatus?.totalSent || 0 }}/3 ✓
+                <span *ngIf="data?.emailStatus?.totalFailed > 0" style="color: #ff6b6b;"> ({{ data?.emailStatus?.totalFailed }} failed)</span>
+              </p>
+            </div>
+            <p class="next-steps">
+              Redirecting to payment in <strong>{{ countdownSeconds }}s</strong>...
+            </p>
+          </div>
+          
+          <div class="notification-footer">
+            <button (click)="onClose()" class="btn-proceed">Proceed to Payment</button>
+          </div>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
-    .dialog-content {
+    .success-notification-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      animation: fadeIn 0.4s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .success-notification-center {
+      position: relative;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 90%;
+      padding: 40px 30px 30px 30px;
+      animation: slideDown 0.4s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .notification-close-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #999;
+      cursor: pointer;
+      padding: 5px 10px;
+      transition: color 0.2s;
+    }
+
+    .notification-close-btn:hover {
+      color: #d32f2f;
+    }
+
+    .notification-content {
       text-align: center;
-      padding: 20px;
     }
 
     .success-icon {
       font-size: 48px;
       color: #4caf50;
-      margin-bottom: 20px;
       font-weight: bold;
+      margin-bottom: 15px;
+      display: block;
     }
 
     h2 {
       color: #004A59;
-      margin-bottom: 15px;
+      margin: 0 0 20px 0;
       font-size: 22px;
+      font-weight: 700;
+    }
+
+    .success-details {
+      text-align: left;
+      margin-bottom: 25px;
     }
 
     .message {
       color: #333;
-      font-size: 16px;
-      margin: 10px 0;
-      line-height: 1.5;
+      font-size: 15px;
+      margin: 12px 0;
+      line-height: 1.6;
     }
 
     .submessage {
       color: #666;
-      font-size: 14px;
-      margin: 10px 0;
-    }
-
-    .member-note {
-      color: #B99532;
-      font-weight: 600;
-      font-size: 14px;
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #fafaf5;
-      border-radius: 4px;
-    }
-
-    .info-text {
-      background-color: #f5f5f5;
-      padding: 10px;
-      border-radius: 4px;
       font-size: 13px;
-      color: #004A59;
+      margin: 10px 0;
+    }
+
+    .info-box {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 8px;
       margin: 15px 0;
+      border-left: 4px solid #004A59;
+    }
+
+    .info-box p {
+      margin: 8px 0;
+      color: #004A59;
+      font-size: 13px;
+    }
+
+    .app-id {
+      background: white;
+      padding: 8px;
+      border-radius: 4px;
       word-break: break-all;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
     }
 
     .next-steps {
       color: #666;
       font-size: 13px;
-      margin: 10px 0;
-      font-style: italic;
+      margin: 15px 0;
+      font-weight: 500;
+    }
+
+    .notification-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .btn-proceed {
+      background-color: #004A59;
+      color: white;
+      padding: 12px 32px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      flex: 1;
+      max-width: 200px;
+    }
+
+    .btn-proceed:hover {
+      background-color: #003039;
+      box-shadow: 0 4px 12px rgba(0, 74, 89, 0.3);
+    }
+
+    @media (max-width: 600px) {
+      .success-notification-center {
+        width: 95%;
+        padding: 35px 20px 20px 20px;
+      }
+
+      h2 {
+        font-size: 18px;
+      }
+
+      .success-icon {
+        font-size: 40px;
+      }
+
+      .message {
+        font-size: 14px;
+      }
+    }
+  `]
+})
+export class SubmissionSuccessDialog implements OnInit, OnDestroy {
+  isVisible = true;
+  countdownSeconds = 5;
+  private countdownInterval: any;
+  private dismissTimeout: any;
+
+  constructor(@Inject(MAT_DIALOG_DATA) public data: any, private router: Router, private dialogRef: MatDialogRef<SubmissionSuccessDialog>) {}
+
+  ngOnInit(): void {
+    this.startAutoClose();
+  }
+
+  ngOnDestroy(): void {
+    this.clearTimers();
+    this.isVisible = false;
+  }
+
+  private startAutoClose(): void {
+    // Countdown timer
+    this.countdownInterval = setInterval(() => {
+      this.countdownSeconds--;
+      if (this.countdownSeconds <= 0) {
+        this.dismiss();
+      }
+    }, 1000);
+
+    // Auto-dismiss after 5 seconds
+    this.dismissTimeout = setTimeout(() => {
+      this.dismiss();
+    }, 5000);
+  }
+
+  private clearTimers(): void {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
+    if (this.dismissTimeout) {
+      clearTimeout(this.dismissTimeout);
+    }
+  }
+
+  onClose(): void {
+    this.dismiss();
+  }
+
+  private dismiss(): void {
+    this.clearTimers();
+    this.isVisible = false;
+    // Close dialog and navigate
+    this.dialogRef.close();
+    this.router.navigate(['/payment']);
+  }
+}
+
+@Component({
+  selector: 'app-m1-validation-error-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="error-dialog-content">
+      <div class="error-header">
+        <div class="error-icon">⚠️</div>
+        <h2>Please Complete All Required Fields</h2>
+      </div>
+
+      <div class="error-body">
+        <div class="error-item" *ngFor="let field of data.errorFields">
+          <div class="field-name">
+            <span class="step-badge" *ngIf="field.step">{{ field.step }}</span>
+            <strong>{{ field.displayName }}</strong>
+          </div>
+          <ul class="error-messages">
+            <li *ngFor="let error of field.errors">{{ error }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="error-footer">
+        <p class="total-errors">{{ data.errorFields.length }} field(s) need attention</p>
+        <button (click)="onClose()" class="close-btn">
+          Got it, let me fix these
+        </button>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .error-dialog-content {
+      padding: 20px;
+      color: #333;
+    }
+
+    .error-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #ff9800;
+    }
+
+    .error-icon {
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+
+    .error-header h2 {
+      color: #d32f2f;
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .error-body {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+
+    .error-item {
+      background-color: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 4px;
+    }
+
+    .field-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .step-badge {
+      background-color: #004A59;
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    .field-name strong {
+      color: #004A59;
+      font-size: 14px;
+    }
+
+    .error-messages {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13px;
+      color: #d32f2f;
+    }
+
+    .error-messages li {
+      padding: 4px 0;
+      margin-left: 20px;
+      position: relative;
+    }
+
+    .error-messages li:before {
+      content: '•';
+      position: absolute;
+      left: -15px;
+    }
+
+    .error-footer {
+      border-top: 1px solid #ddd;
+      padding-top: 15px;
+      text-align: center;
+    }
+
+    .total-errors {
+      font-size: 13px;
+      color: #666;
+      margin: 0 0 12px 0;
+      font-weight: 500;
     }
 
     .close-btn {
       background-color: #004A59;
       color: white;
       padding: 10px 30px;
-      margin-top: 20px;
       border-radius: 4px;
       font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
 
     .close-btn:hover {
-      background-color: darken(#004A59, 10%);
+      background-color: #003039;
     }
   `]
 })
-export class SubmissionSuccessDialog {
+export class M1ValidationErrorDialog {
   constructor(@Inject(MAT_DIALOG_DATA) public data: any) {}
 
   onClose(): void {
-    window.location.href = '/dashboard';
+    // Dialog will close when button is clicked
+  }
+}
+
+@Component({
+  selector: 'app-m1-verification-success-dialog',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="success-dialog">
+      <div class="success-icon">✓</div>
+      <h2>Identity Verified Successfully</h2>
+      <div class="verification-details">
+        <div class="detail-row">
+          <span class="label">Country:</span>
+          <span class="value">Zimbabwe</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Years of Experience:</span>
+          <span class="value">{{ data.yearsOfExperience }} years</span>
+        </div>
+      </div>
+      <p class="message">
+        Your information has been verified and automatically filled in your form.
+      </p>
+      <button (click)="onClose()" class="close-btn">Continue</button>
+    </div>
+  `,
+  styles: [`
+    .success-dialog {
+      text-align: center;
+      padding: 30px;
+    }
+
+    .success-icon {
+      font-size: 48px;
+      color: #388e3c;
+      margin-bottom: 15px;
+      font-weight: bold;
+    }
+
+    h2 {
+      color: #004A59;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+
+    .verification-details {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      font-weight: 600;
+      color: #004A59;
+      flex: 1;
+    }
+
+    .value {
+      color: #388e3c;
+      font-weight: 600;
+      flex: 1;
+      text-align: right;
+    }
+
+    .message {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 15px 0;
+    }
+
+    .close-btn {
+      background-color: #004A59;
+      color: white;
+      padding: 10px 30px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .close-btn:hover {
+      background-color: #003039;
+    }
+  `]
+})
+export class M1VerificationSuccessDialog {
+  constructor(@Inject(MAT_DIALOG_DATA) public data: any) {}
+
+  onClose(): void {
+    // Dialog will close when button is clicked
   }
 }

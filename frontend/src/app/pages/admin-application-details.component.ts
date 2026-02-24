@@ -29,7 +29,7 @@ import { environment } from '../../environments/environment';
           </div>
           <nav class="nav-menu">
             <button 
-              *ngFor="let section of navSections" 
+              *ngFor="let section of filteredNavSections" 
               [class.active]="activeSection === section.id"
               (click)="navigateToSection(section.id)"
               class="nav-item">
@@ -315,8 +315,55 @@ import { environment } from '../../environments/environment';
             </div>
           </section>
 
-          <!-- Interview Approval Section -->
-          <section *ngIf="activeSection === 'interviews'" #interviewsSection class="content-section">
+          <!-- Application Decision Section (For Expatriates and Local Applicants) -->
+          <section *ngIf="activeSection === 'decision'" #decisionSection class="content-section interview-confirmation-section">
+            <div class="section-header">
+              <h2>{{ selectedApplication?.applicationType === 'expatriate' ? 'Application Approval' : 'Interview Pass Decision' }}</h2>
+            </div>
+            <div class="section-content">
+              <div class="confirmation-card" [class.passed]="selectedApplication?.status === 'Passed'">
+                <div class="confirmation-header">
+                  <span class="status-indicator" [ngClass]="selectedApplication?.status === 'Passed' ? 'passed' : 'pending'">
+                    {{ selectedApplication?.status === 'Passed' ? '✓ PASSED' : '⏳ PENDING' }}
+                  </span>
+                </div>
+                <div class="confirmation-details">
+                  <div class="detail-item">
+                    <span class="label">Application Status:</span>
+                    <span class="value">
+                      {{ selectedApplication?.status === 'Passed' ? 'Passed - Approved' : 'Not Yet Approved' }}
+                    </span>
+                  </div>
+                  <div class="detail-item" *ngIf="selectedApplication?.registrationNumber">
+                    <span class="label">Registration Number:</span>
+                    <span class="value reg-number">{{ selectedApplication.registrationNumber }}</span>
+                  </div>
+                  <div class="detail-item" *ngIf="selectedApplication?.interviewPassedDate">
+                    <span class="label">Approved Date:</span>
+                    <span class="value">{{ selectedApplication.interviewPassedDate | date: 'medium' }}</span>
+                  </div>
+                </div>
+                <div class="confirmation-action">
+                  <p class="instruction-text">
+                    {{ selectedApplication?.applicationType === 'expatriate' 
+                      ? 'Click the button below to approve this expatriate applicant. This will set their status to Passed and allow admission decisions to be made.'
+                      : 'Click the button below to confirm that this applicant has successfully passed. This will generate a unique registration number and allow the applicant to download their professional certificate.' }}
+                  </p>
+                  <button 
+                    (click)="passInterview()" 
+                    class="btn-confirm-interview"
+                    [disabled]="!canPassInterview()">
+                    {{ selectedApplication?.status === 'Passed' 
+                      ? '✓ Already ' + (selectedApplication?.applicationType === 'expatriate' ? 'Approved' : 'Confirmed') 
+                      : '✓ ' + (selectedApplication?.applicationType === 'expatriate' ? 'Approve Application' : 'Confirm Interview Pass & Generate Certificate') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Interviews Section (Local Applicants Only) -->
+          <section *ngIf="activeSection === 'interviews' && selectedApplication?.applicationType !== 'expatriate'" #interviewsSection class="content-section">
             <div class="section-header">
               <h2>Interview Approval ({{ selectedApplication?.adminApprovals?.length || 0 }}/3)</h2>
             </div>
@@ -417,6 +464,73 @@ import { environment } from '../../environments/environment';
                     {{ selectedApplication?.status === 'Passed' ? '✓ Interview Already Confirmed' : '🎓 Confirm Interview Pass & Generate Certificate' }}
                   </button>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Certificate & Admission Updates Section -->
+          <section *ngIf="activeSection === 'updates' && (selectedApplication?.applicationType === 'expatriate' || selectedApplication?.status === 'Passed')" class="content-section">
+            <div class="section-header">
+              <h2>{{ selectedApplication?.applicationType === 'expatriate' ? 'Admission & Certificate' : 'Certificate' }} Updates</h2>
+              <p class="section-subtitle">{{ selectedApplication?.applicationType === 'expatriate' ? 'Confirm admission and manage certificate issuance for expatriate applicants' : 'Approve certificate issuance for passed applicant' }}</p>
+            </div>
+            <div class="section-content">
+              <!-- Workflow Information -->
+              <div class="workflow-info-box">
+                <h4>ℹ️ Workflow:</h4>
+                <ol>
+                  <li><strong>Admin Review:</strong> You're reviewing this {{ selectedApplication?.applicationType === 'expatriate' ? 'expatriate' : 'local' }} application</li>
+                  <li><strong>Admin Approval:</strong> When you {{ selectedApplication?.applicationType === 'expatriate' ? 'confirm admission' : 'mark interview as passed' }}, the application status becomes "Passed"</li>
+                  <li><strong>Super Admin Processing:</strong> The application then appears in the Super Admin Dashboard for final certificate approval</li>
+                  <li><strong>Certificate Issue:</strong> Super Admin approves and the applicant receives their registration number</li>
+                </ol>
+              </div>
+
+              <!-- Admission Status Box -->
+              <div class="admission-status-box" [ngClass]="selectedApplication?.admissionUpdate?.status || 'pending'">
+                <div class="status-header">
+                  <strong>Current Status:</strong>
+                  <span class="status-badge" [ngClass]="'status-' + (selectedApplication?.admissionUpdate?.status || 'pending')">
+                    {{ (selectedApplication?.admissionUpdate?.status || 'pending').toUpperCase() }}
+                  </span>
+                </div>
+                <div *ngIf="selectedApplication?.admissionUpdate?.confirmedAt" class="status-detail">
+                  <span class="label">Confirmed on:</span>
+                  <span>{{ selectedApplication.admissionUpdate.confirmedAt | date: 'medium' }} by {{ selectedApplication.admissionUpdate.confirmedByName }}</span>
+                </div>
+              </div>
+
+              <!-- Admission Confirmation Form -->
+              <div *ngIf="selectedApplication?.admissionUpdate?.status !== 'admitted'" class="admission-form">
+                <div class="form-group">
+                  <label>{{ selectedApplication?.applicationType === 'expatriate' ? 'Admission' : 'Certificate' }} Status</label>
+                  <select [(ngModel)]="admissionStatus" class="form-input">
+                    <option value="">Select status</option>
+                    <option value="admitted">{{ selectedApplication?.applicationType === 'expatriate' ? 'Admitted' : 'Approve' }}</option>
+                    <option value="rejected">{{ selectedApplication?.applicationType === 'expatriate' ? 'Rejected' : 'Reject' }}</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>{{ selectedApplication?.applicationType === 'expatriate' ? 'Admission' : 'Certificate' }} Message (Optional)</label>
+                  <textarea 
+                    [(ngModel)]="admissionMessage" 
+                    [placeholder]="'Add any message or notes regarding the ' + (selectedApplication?.applicationType === 'expatriate' ? 'admission' : 'certificate') + ' decision...'"
+                    class="form-textarea"
+                    rows="3"></textarea>
+                </div>
+
+                <button (click)="confirmAdmission()" [disabled]="!admissionStatus" class="btn-primary">
+                  {{ admissionStatus === 'admitted' ? 
+                    (selectedApplication?.applicationType === 'expatriate' ? 'Confirm Admission' : 'Approve Certificate') : 
+                    (selectedApplication?.applicationType === 'expatriate' ? 'Confirm Rejection' : 'Reject Certificate') }}
+                </button>
+              </div>
+
+              <!-- Message Display -->
+              <div *ngIf="selectedApplication?.admissionUpdate?.message" class="admission-message-box">
+                <h4>Update Message:</h4>
+                <p>{{ selectedApplication.admissionUpdate.message }}</p>
               </div>
             </div>
           </section>
@@ -1540,6 +1654,159 @@ import { environment } from '../../environments/environment';
       font-size: 13px;
     }
 
+    /* Workflow Information Styles */
+    .workflow-info-box {
+      background-color: #e3f2fd;
+      border: 2px solid #004A59;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 25px;
+
+      h4 {
+        color: #004A59;
+        margin: 0 0 12px 0;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      ol {
+        margin: 0;
+        padding-left: 20px;
+        color: #333;
+        
+        li {
+          margin-bottom: 10px;
+          font-size: 13px;
+          line-height: 1.5;
+          
+          strong {
+            color: #004A59;
+            font-weight: 600;
+          }
+        }
+      }
+    }
+
+    /* Admission Updates Styles */
+    .admission-status-box {
+      background: linear-gradient(135deg, #f5f5f5 0%, #fff 100%);
+      border: 2px solid #B99532;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 25px;
+      
+      &.pending {
+        border-color: #ff9800;
+        background: linear-gradient(135deg, #fff3e0 0%, #fff 100%);
+      }
+
+      &.admitted {
+        border-color: #28a745;
+        background: linear-gradient(135deg, #f0f9f6 0%, #fff 100%);
+      }
+
+      &.rejected {
+        border-color: #c62828;
+        background: linear-gradient(135deg, #ffebee 0%, #fff 100%);
+      }
+    }
+
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+
+      .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+
+        &.status-pending {
+          background-color: #fff3cd;
+          color: #856404;
+        }
+
+        &.status-admitted {
+          background-color: #d4edda;
+          color: #155724;
+        }
+
+        &.status-rejected {
+          background-color: #f8d7da;
+          color: #721c24;
+        }
+      }
+    }
+
+    .status-detail {
+      font-size: 13px;
+      color: #555;
+      padding-top: 8px;
+      border-top: 1px solid rgba(185, 149, 50, 0.2);
+
+      .label {
+        font-weight: 600;
+        color: #004A59;
+        margin-right: 8px;
+      }
+    }
+
+    .admission-form {
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .form-textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+
+      &:focus {
+        outline: none;
+        border-color: #004A59;
+        box-shadow: 0 0 0 3px rgba(0, 74, 89, 0.1);
+      }
+    }
+
+    .admission-message-box {
+      background-color: #f5f5f5;
+      border-left: 4px solid #B99532;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 15px;
+
+      h4 {
+        color: #004A59;
+        margin: 0 0 10px 0;
+        font-size: 14px;
+      }
+
+      p {
+        margin: 0;
+        color: #555;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+    }
+
+    .section-subtitle {
+      font-size: 13px;
+      color: #666;
+      margin: 5px 0 0 0;
+    }
+
     @media (max-width: 768px) {
       .main-layout {
         flex-direction: column;
@@ -1650,9 +1917,39 @@ export class AdminApplicationDetailsComponent implements OnInit {
     { id: 'payment', label: 'Payment' },
     { id: 'grading', label: 'Manual Grading' },
     { id: 'referees', label: 'Referee Appraisal' },
+    { id: 'decision', label: 'Application Decision' },
     { id: 'interviews', label: 'Interviews' },
     { id: 'notification', label: 'Interview Notification' },
+    { id: 'updates', label: 'Admission Updates' },
   ];
+
+  // Admission update properties for expatriates
+  admissionStatus = ''; // 'pending', 'admitted', 'rejected'
+  admissionMessage = '';
+  admissionConfirmedAt: Date | null = null;
+  admissionConfirmedBy = '';
+  digitalSignature: File | null = null;
+
+  get filteredNavSections() {
+    if (!this.selectedApplication) return this.navSections;
+    
+    // For expatriates: show decision, documents, checklist, payment, grading, referees, updates
+    // Hide interviews and notification sections
+    if (this.selectedApplication?.applicationType === 'expatriate') {
+      return this.navSections.filter(s => 
+        !['interviews', 'notification'].includes(s.id)
+      );
+    }
+    
+    // For local applications: show decision and interviews sections
+    // Show updates only if they passed
+    if (this.selectedApplication?.status === 'Passed') {
+      return this.navSections.filter(s => s.id !== 'notification');
+    }
+    
+    // Remove updates and decision sections for locals not yet passed
+    return this.navSections.filter(s => !['updates'].includes(s.id));
+  }
 
   getSponsorResponseCount(): number {
     if (!this.selectedApplication?.sponsors) return 0;
@@ -1955,6 +2252,46 @@ export class AdminApplicationDetailsComponent implements OnInit {
     }
   }
 
+  confirmAdmission(): void {
+    if (!this.selectedApplication || !this.admissionStatus) {
+      this.updateError = 'Please select an admission status';
+      return;
+    }
+
+    const confirmMsg = this.admissionStatus === 'admitted' 
+      ? 'Are you sure you want to confirm this applicant\'s admission?' 
+      : 'Are you sure you want to reject this applicant?';
+
+    if (confirm(confirmMsg)) {
+      const admissionData = {
+        status: this.admissionStatus,
+        message: this.admissionMessage,
+      };
+
+      this.applicationService.updateExpatriateAdmission(
+        this.selectedApplication._id, 
+        admissionData
+      ).subscribe({
+        next: (response: any) => {
+          const appData = response.application || response;
+          this.selectedApplication.admissionUpdate = appData.admissionUpdate;
+          
+          this.updateSuccess = true;
+          this.updateError = '';
+          this.admissionStatus = '';
+          this.admissionMessage = '';
+          
+          console.log('Admission status updated:', appData.status);
+          setTimeout(() => (this.updateSuccess = false), 3000);
+        },
+        error: (error: any) => {
+          console.error('Error updating admission:', error);
+          this.updateError = error.error?.message || 'Failed to update admission status';
+        },
+      });
+    }
+  }
+
   /**
    * Get available status options based on current status
    */
@@ -1972,7 +2309,8 @@ export class AdminApplicationDetailsComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    console.log('🚪 Admin Application Details: Logging out');
+    // Use logoutAndNavigate to ensure complete state cleanup and hard refresh
+    this.authService.logoutAndNavigate();
   }
 }

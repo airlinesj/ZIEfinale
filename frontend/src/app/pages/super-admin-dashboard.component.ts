@@ -15,16 +15,73 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
       <div class="header-section">
         <h1>Super Admin Dashboard - Certificate Management</h1>
         <div class="header-buttons">
-          <a routerLink="/applications-list" class="btn-view-details">
-            <span class="material-symbols-outlined">description</span>
-            View All Applications
-          </a>
+          <button (click)="toggleViewMode()" class="btn-view-details">
+            <span class="material-symbols-outlined">{{ showListView ? 'dashboard' : 'list' }}</span>
+            {{ showListView ? 'Dashboard View' : 'View Details' }}
+          </button>
           <button (click)="logout()" class="btn-logout">Logout</button>
         </div>
       </div>
 
       <div class="dashboard-content">
-        <div class="stats-section">
+        <div class="refresh-section">
+          <button (click)="refreshApplications()" class="btn-refresh">
+            <span class="material-symbols-outlined">refresh</span>
+            Refresh Applications
+          </button>
+          <button (click)="debugShowAllApplications()" class="btn-debug" style="margin-left: 10px;">
+            <span class="material-symbols-outlined">bug_report</span>
+            Debug: Show All
+          </button>
+        </div>
+
+        <!-- LIST VIEW -->
+        <div *ngIf="showListView" class="list-view-section">
+          <div class="section-header">
+            <h2>Applications Awaiting Certificate Approval</h2>
+            <span class="count-badge">{{ awaitingApprovalApplications.length }}</span>
+          </div>
+          
+          <div *ngIf="awaitingApprovalApplications.length > 0" class="applications-list">
+            <table class="applications-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Grade</th>
+                  <th>Division</th>
+                  <th>Registration #</th>
+                  <th>Interview Passed</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let app of awaitingApprovalApplications" class="app-row">
+                  <td class="name">{{ app.personalParticulars.firstName }} {{ app.personalParticulars.lastName }}</td>
+                  <td class="email">{{ app.personalParticulars.email }}</td>
+                  <td class="grade">{{ app.chosenGrade }}</td>
+                  <td class="division">{{ app.chosenSpecialistDivision }}</td>
+                  <td class="reg-number">{{ app.registrationNumber || 'Pending' }}</td>
+                  <td class="interview-date">{{ app.interviewPassedDate | date: 'short' || '-' }}</td>
+                  <td class="action">
+                    <button (click)="approveCertificate(app._id)" class="btn-approve-small">
+                      <span class="material-symbols-outlined">check_circle</span>
+                      Approve
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div *ngIf="awaitingApprovalApplications.length === 0" class="no-data">
+            <p>No applications awaiting certificate approval</p>
+          </div>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+
+        <div *ngIf="!showListView" class="stats-section">
           <div class="stat-card">
             <h3>Total Applications</h3>
             <p class="stat-value">{{ applications.length }}</p>
@@ -43,15 +100,15 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
           </div>
         </div>
 
-        <div class="analytics-section">
+        <div *ngIf="!showListView" class="analytics-section">
           <!-- Application Stats by Membership Grade -->
           <div class="stats-by-grade-section">
             <app-application-stats [membershipGrades]="getApplicationStatsByGrade()"></app-application-stats>
           </div>
         </div>
 
-        <!-- Pending Certificate Approvals Section -->
-        <div class="pending-approvals-section">
+        <!-- Pending Certificate Approvals Section (Dashboard View) -->
+        <div *ngIf="!showListView" class="pending-approvals-section">
           <div class="section-header">
             <h2>Certificate Approvals Pending</h2>
             <span class="count-badge">{{ awaitingApprovalApplications.length }}</span>
@@ -94,10 +151,6 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
                   <button (click)="approveCertificate(app._id)" class="btn-approve">
                     <span class="material-symbols-outlined">check_circle</span>
                     Approve & Issue Certificate
-                  </button>
-                  <button (click)="viewApplicationDetails(app._id)" class="btn-view">
-                    <span class="material-symbols-outlined">visibility</span>
-                    View Full Details
                   </button>
                 </div>
               </div>
@@ -201,6 +254,60 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
       max-width: 1400px;
       margin: 0 auto;
       padding: 30px 20px;
+    }
+
+    .refresh-section {
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .btn-refresh {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background-color: #004A59;
+      color: white;
+      border: 2px solid #004A59;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        background-color: #B99532;
+        border-color: #B99532;
+      }
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
+    }
+
+    .btn-debug {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background-color: #666;
+      color: white;
+      border: 2px solid #666;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        background-color: #888;
+        border-color: #888;
+      }
+
+      .material-symbols-outlined {
+        font-size: 18px;
+      }
     }
 
     .stats-section {
@@ -453,6 +560,135 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
       }
     }
 
+    /* List View Styles */
+    .list-view-section {
+      padding: 20px;
+      background-color: white;
+      border-radius: 8px;
+      margin: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .list-view-section .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .list-view-section h2 {
+      margin: 0;
+      color: #004A59;
+      font-size: 20px;
+    }
+
+    .count-badge {
+      background-color: #004A59;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .applications-list {
+      overflow-x: auto;
+    }
+
+    .applications-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .applications-table thead {
+      background-color: #f5f5f5;
+      border-bottom: 2px solid #004A59;
+    }
+
+    .applications-table th {
+      padding: 12px;
+      text-align: left;
+      color: #004A59;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .applications-table tbody tr {
+      border-bottom: 1px solid #e0e0e0;
+      transition: background-color 0.2s;
+    }
+
+    .applications-table tbody tr:hover {
+      background-color: #f9f9f9;
+    }
+
+    .applications-table td {
+      padding: 12px;
+    }
+
+    .applications-table .name {
+      font-weight: 600;
+      color: #004A59;
+    }
+
+    .applications-table .email {
+      color: #666;
+    }
+
+    .applications-table .grade {
+      background-color: #e8f4f8;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .applications-table .division {
+      color: #555;
+      font-size: 13px;
+    }
+
+    .applications-table .reg-number {
+      font-weight: 500;
+      color: #004A59;
+      font-family: monospace;
+    }
+
+    .applications-table .interview-date {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .applications-table .action {
+      text-align: center;
+    }
+
+    .btn-approve-small {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.3s;
+      white-space: nowrap;
+    }
+
+    .btn-approve-small:hover {
+      background-color: #218838;
+    }
+
+    .btn-approve-small .material-symbols-outlined {
+      font-size: 16px;
+    }
+
     @media (max-width: 768px) {
       .header-section {
         flex-direction: column;
@@ -475,6 +711,20 @@ import { ApplicationStatsComponent, MembershipGradeStats } from '../components/a
       .stats-section {
         grid-template-columns: repeat(2, 1fr);
       }
+
+      .applications-table {
+        font-size: 12px;
+      }
+
+      .applications-table th,
+      .applications-table td {
+        padding: 8px;
+      }
+
+      .btn-approve-small {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
     }
   `]
 })
@@ -484,6 +734,7 @@ export class SuperAdminDashboardComponent implements OnInit {
   successMessage = '';
   errorMessage = '';
   currentUser: any;
+  showListView = false; // Toggle between dashboard (cards) and list view
 
   constructor(
     private applicationService: ApplicationService,
@@ -509,14 +760,76 @@ export class SuperAdminDashboardComponent implements OnInit {
     this.applicationService.getAllApplications().subscribe({
       next: (apps: any[]) => {
         this.applications = apps;
-        this.awaitingApprovalApplications = apps.filter(
-          (app) => app.status === 'Passed' && !app.certificateApprovedBy
-        );
+        console.log('📋 Loading applications for super admin...');
+        console.log('Total applications:', apps.length);
+        console.log('All applications:', apps.map(a => ({
+          firstName: a.personalParticulars?.firstName,
+          applicationType: a.applicationType,
+          status: a.status,
+          admissionStatus: a.admissionUpdate?.status,
+          interviewPassedDate: a.interviewPassedDate,
+          registrationNumber: a.registrationNumber
+        })));
+        
+        // Filter for applications awaiting certificate approval:
+        // - Status must be 'Passed' (interview passed or expatriate confirmed by admin)
+        // - AND admissionUpdate.status is NOT 'admitted' (not yet approved by super admin)
+        this.awaitingApprovalApplications = apps.filter((app) => {
+          const hasPassed = app.status === 'Passed';
+          const notAdmitted = !app.admissionUpdate || app.admissionUpdate.status !== 'admitted';
+          const matches = hasPassed && notAdmitted;
+          
+          if (matches) {
+            console.log(`  ✓ ${app.personalParticulars.firstName} ${app.personalParticulars.lastName} - Type: ${app.applicationType}, Status: ${app.status}, Admission: ${app.admissionUpdate?.status || 'none'}`);
+          }
+          return matches;
+        });
+        
+        console.log('Awaiting approval:', this.awaitingApprovalApplications.length);
+        console.log('Approved:', apps.filter(a => a.admissionUpdate?.status === 'admitted').length);
+        
+        // Log debug info to help troubleshoot
+        if (this.awaitingApprovalApplications.length === 0) {
+          console.warn('⚠️ No applications awaiting approval. Debug info:');
+          console.warn('  - Total apps:', apps.length);
+          console.warn('  - Passed apps:', apps.filter(a => a.status === 'Passed').length);
+          console.warn('  - Apps with admissionUpdate:', apps.filter(a => a.admissionUpdate).length);
+          console.warn('  - Apps with pending admission:', apps.filter(a => a.admissionUpdate?.status === 'pending').length);
+        }
       },
       error: (error) => {
         console.error('Error loading applications:', error);
+        this.errorMessage = 'Failed to load applications. Please refresh the page.';
       },
     });
+  }
+
+  refreshApplications(): void {
+    console.log('Refreshing applications...');
+    this.loadApplications();
+  }
+
+  debugShowAllApplications(): void {
+    console.log('=== DEBUG: ALL APPLICATIONS ===');
+    console.log('Total applications:', this.applications.length);
+    this.applications.forEach((app, i) => {
+      console.log(`${i + 1}. ${app.personalParticulars?.firstName} ${app.personalParticulars?.lastName}`);
+      console.log(`   - Email: ${app.personalParticulars?.email}`);
+      console.log(`   - Type: ${app.applicationType}`);
+      console.log(`   - Status: ${app.status}`);
+      console.log(`   - Admission Status: ${app.admissionUpdate?.status || 'none'}`);
+      console.log(`   - Interview Passed: ${app.interviewPassedDate || 'no'}`);
+      console.log(`   - Registration Number: ${app.registrationNumber || 'none'}`);
+      console.log('---');
+    });
+    
+    console.log('=== FILTERED FOR SUPER ADMIN ===');
+    console.log('Awaiting approval:', this.awaitingApprovalApplications.length);
+    this.awaitingApprovalApplications.forEach((app, i) => {
+      console.log(`${i + 1}. ${app.personalParticulars?.firstName} ${app.personalParticulars?.lastName}`);
+    });
+    
+    alert(`Debug Info Logged. Check console.\n\nTotal Apps: ${this.applications.length}\nAwaiting Approval: ${this.awaitingApprovalApplications.length}\n\nCheck browser console for details.`);
   }
 
   getPassedInterviewCount(): number {
@@ -528,7 +841,9 @@ export class SuperAdminDashboardComponent implements OnInit {
   }
 
   getCertificatesIssuedCount(): number {
-    return this.applications.filter((app) => app.certificateApprovedBy).length;
+    return this.applications.filter(
+      (app) => app.status === 'Passed' && app.admissionUpdate?.status === 'admitted'
+    ).length;
   }
 
   getApplicationStatsByGrade(): MembershipGradeStats[] {
@@ -573,13 +888,68 @@ export class SuperAdminDashboardComponent implements OnInit {
   }
 
   approveCertificate(applicationId: string): void {
-    // TODO: Implement certificate approval with signature
-    this.successMessage = 'Certificate approval initiated. Feature coming soon.';
-    setTimeout(() => (this.successMessage = ''), 5000);
+    if (!applicationId) {
+      console.error('Application ID is required');
+      this.errorMessage = 'Application ID is missing';
+      return;
+    }
+
+    // Find the application to get name for confirmation
+    const app = this.awaitingApprovalApplications.find(a => a._id === applicationId);
+    if (!app) {
+      console.error('Application not found in list');
+      this.errorMessage = 'Application not found';
+      return;
+    }
+
+    // Confirm approval with user
+    const appName = `${app.personalParticulars.firstName} ${app.personalParticulars.lastName}`;
+    const confirmApprove = confirm(
+      `Approve certificate for ${appName}?\n\nThis will generate and approve their professional certificate.`
+    );
+    if (!confirmApprove) {
+      return;
+    }
+
+    console.log('💼 Approving certificate for application:', applicationId);
+    console.log('   Applicant:', appName);
+    console.log('   Type:', app.applicationType);
+    
+    this.successMessage = '';
+    this.errorMessage = '';
+
+    // Call the backend endpoint to approve certificate
+    this.applicationService.confirmExpatriateAdmission(applicationId).subscribe({
+      next: (response: any) => {
+        console.log('✓ Certificate approved successfully');
+        console.log('Response:', response);
+        
+        const appData = response.application || response;
+        this.successMessage = `✓ Certificate approved for ${appName}! Registration: ${appData.registrationNumber}`;
+        
+        // Reload applications to refresh the list
+        setTimeout(() => {
+          this.loadApplications();
+          this.successMessage = '';
+        }, 2500);
+      },
+      error: (error: any) => {
+        console.error('❌ Error approving certificate:', error);
+        this.errorMessage = error.error?.message || 'Failed to approve certificate. Please try again.';
+        console.error('Full error:', error);
+      },
+    });
   }
 
+  // Super admin dashboard only needs to approve or reject certificates
+  // No need to view full details - the list shows all necessary information
   viewApplicationDetails(applicationId: string): void {
-    this.router.navigate(['/application', applicationId]);
+    // Removed navigation - super admin stays on dashboard to manage certificates
+    console.log('Viewing application:', applicationId);
+  }
+
+  toggleViewMode(): void {
+    this.showListView = !this.showListView;
   }
 
   logout(): void {
@@ -588,6 +958,6 @@ export class SuperAdminDashboardComponent implements OnInit {
   }
 
   goBackToDashboard(): void {
-    this.router.navigate(['/admin-dashboard']);
+    this.router.navigate(['/super-admin-dashboard']);
   }
 }

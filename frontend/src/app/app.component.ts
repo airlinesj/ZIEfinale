@@ -71,6 +71,52 @@ import { filter, skip, tap } from 'rxjs';
         min-height: 100vh;
       }
     }
+
+    /* Dialog Panel Styles - Ensure dialogs appear above everything */
+    :host ::ng-deep .success-dialog-panel {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .success-dialog-panel .mat-mdc-dialog-container {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .success-dialog-panel ~ .cdk-overlay-backdrop {
+      z-index: 9998 !important;
+    }
+
+    :host ::ng-deep .centered-dialog {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .centered-dialog .mat-mdc-dialog-container {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .centered-dialog ~ .cdk-overlay-backdrop {
+      z-index: 9998 !important;
+    }
+
+    :host ::ng-deep .submission-dialog-panel {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .submission-dialog-panel .mat-mdc-dialog-container {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .submission-dialog-panel ~ .cdk-overlay-backdrop {
+      z-index: 9998 !important;
+    }
+
+    /* Generic dialog backdrop fix */
+    :host ::ng-deep .cdk-overlay-pane {
+      z-index: 9999 !important;
+    }
+
+    :host ::ng-deep .cdk-overlay-backdrop {
+      z-index: 9998 !important;
+    }
   `],
 })
 export class AppComponent implements OnInit {
@@ -88,8 +134,17 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     console.log('🚀 App component initializing');
     
-    // Restore user classification from localStorage on app load
-    this.roleBasedDashboardService.restoreFromLocalStorage();
+    // Check if we have a valid current user before restoring classification
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser && this.authService.isLoggedIn()) {
+      // Only restore classification if we have a valid logged-in user
+      this.roleBasedDashboardService.restoreFromLocalStorage();
+    } else {
+      // Clear any stale classification data if user is not logged in
+      localStorage.removeItem('userClassification');
+      localStorage.removeItem('dashboardInfo');
+      this.roleBasedDashboardService.clearClassification();
+    }
     
     // Check current route on init
     this.updatePageStatus();

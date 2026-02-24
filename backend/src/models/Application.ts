@@ -29,6 +29,24 @@ export interface SponsorAppraisal {
   isConfidential: boolean;
 }
 
+export interface ApprenticeRefereeAppraisal {
+  refereeEmail: string;
+  refereeName: string;
+  refereeRelationship: string;
+  appraisalToken: string;
+  responses?: {
+    question1: string;
+    question2: string;
+    question3: string;
+    question4: string;
+    question5: string;
+    question6: string;
+    question7: string;
+    question8: string;
+  };
+  submittedAt?: Date;
+}
+
 export interface AdminApproval {
   adminId: mongoose.Types.ObjectId;
   adminEmail: string;
@@ -61,6 +79,17 @@ export interface InterviewNotification {
   sentByEmail: string;
   sentByName: string;
   message?: string;
+}
+
+export interface AdmissionUpdate {
+  status: 'pending' | 'admitted' | 'rejected';
+  message?: string;
+  confirmedAt: Date;
+  confirmedBy: mongoose.Types.ObjectId;
+  confirmedByEmail: string;
+  confirmedByName: string;
+  digitalSignatureAssignedAt?: Date;
+  digitalSignatureAssignedBy?: mongoose.Types.ObjectId;
 }
 
 export interface IEducation {
@@ -131,8 +160,10 @@ export interface IApplication extends Document {
   manualGrade?: ManualGrade;         // Admin manual grading
   adminApprovals: AdminApproval[];   // Array of approvals from different admins (need 3)
   interviewNotification?: InterviewNotification;  // Interview notification from admin
+  admissionUpdate?: AdmissionUpdate;              // Expatriate admission status and message
   rejectionInfo?: RejectionInfo;     // Track rejection with 48-hour edit window
   sponsors: SponsorAppraisal[];
+  apprenticeReferee?: ApprenticeRefereeAppraisal;  // Apprentice referee for expatriates
   adminChecklist: AdminChecklist;
   adminNotes: string;
   confidentialFlag: boolean;
@@ -196,7 +227,7 @@ const applicationSchema = new Schema<IApplication>(
     },
     chosenSpecialistDivision: {
       type: String,
-      required: true,
+      default: null,
     },
     suggestedDivision: {
       type: String,
@@ -282,6 +313,26 @@ const applicationSchema = new Schema<IApplication>(
       sentByName: String,
       message: String,
     },
+    admissionUpdate: {
+      status: {
+        type: String,
+        enum: ['pending', 'admitted', 'rejected'],
+        default: 'pending'
+      },
+      message: String,
+      confirmedAt: Date,
+      confirmedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      confirmedByEmail: String,
+      confirmedByName: String,
+      digitalSignatureAssignedAt: Date,
+      digitalSignatureAssignedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    },
     sponsors: [
       {
         sponsorEmail: String,
@@ -301,6 +352,23 @@ const applicationSchema = new Schema<IApplication>(
         isConfidential: { type: Boolean, default: true },
       },
     ],
+    apprenticeReferee: {
+      refereeEmail: String,
+      refereeName: String,
+      refereeRelationship: String,
+      appraisalToken: String,
+      responses: {
+        question1: String,
+        question2: String,
+        question3: String,
+        question4: String,
+        question5: String,
+        question6: String,
+        question7: String,
+        question8: String,
+      },
+      submittedAt: Date,
+    },
     adminChecklist: {
       photo: { type: Boolean, default: false },
       m1Form: { type: Boolean, default: false },

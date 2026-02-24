@@ -397,6 +397,7 @@ export class ApplicationsListComponent implements OnInit {
   }
 
   logout(): void {
+    console.log('🚪 Applications List: Logging out');
     // Use logoutAndNavigate to properly clear browser history and navigate to landing page
     this.authService.logoutAndNavigate();
   }

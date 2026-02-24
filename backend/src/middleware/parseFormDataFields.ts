@@ -23,9 +23,17 @@ export const parseFormDataFields = (req: Request, res: Response, next: NextFunct
       req.body.experience = JSON.parse(req.body.experience);
       console.log('Parsed experience');
     }
+    if (req.body.referees && typeof req.body.referees === 'string') {
+      req.body.referees = JSON.parse(req.body.referees);
+      console.log('Parsed referees:', req.body.referees);
+    }
     if (req.body.sponsors && typeof req.body.sponsors === 'string') {
       req.body.sponsors = JSON.parse(req.body.sponsors);
       console.log('Parsed sponsors:', req.body.sponsors);
+    }
+    if (req.body.companyRecommendation && typeof req.body.companyRecommendation === 'string') {
+      req.body.companyRecommendation = JSON.parse(req.body.companyRecommendation);
+      console.log('Parsed companyRecommendation');
     }
     next();
   } catch (error) {

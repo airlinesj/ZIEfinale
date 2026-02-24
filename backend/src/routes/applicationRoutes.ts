@@ -19,6 +19,7 @@ import {
   updateReferees,
   getCertificate,
   passInterview,
+  confirmExpatriateAdmission,
 } from '../controllers/applicationController';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
 import { multipleUploadPDF, uploadPaymentProofPDF } from '../middleware/fileUpload';
@@ -102,6 +103,7 @@ router.post('/:id/manual-grade', authMiddleware, adminMiddleware, setManualGrade
 router.post('/:id/approve-interview', authMiddleware, adminMiddleware, addAdminApproval);
 router.post('/:id/send-interview-notification', authMiddleware, adminMiddleware, sendInterviewNotification);
 router.post('/:id/pass-interview', authMiddleware, adminMiddleware, passInterview);
+router.post('/:id/expatriate-admission', authMiddleware, adminMiddleware, confirmExpatriateAdmission);
 
 // PUT routes with IDs
 router.put('/:id/status', authMiddleware, adminMiddleware, updateApplicationStatus);

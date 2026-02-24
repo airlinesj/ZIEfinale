@@ -9,25 +9,53 @@ export class RoleGuard implements CanActivate {
   constructor(private authService: AuthService, private router: Router) {}
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
+    // Get the current user - this should reflect the latest state
     const currentUser = this.authService.getCurrentUser();
+    
+    console.log('🔒 RoleGuard checking access');
+    console.log('  - URL:', state.url);
+    console.log('  - Current user:', currentUser?.email);
+    console.log('  - Current user role:', currentUser?.role);
+    console.log('  - Token exists:', !!this.authService.getToken());
 
+    // If no user, redirect to login
     if (!currentUser) {
-      this.router.navigate(['/login']);
+      console.warn('⚠ RoleGuard: No user found, redirecting to login');
+      this.router.navigate(['/login'], { replaceUrl: true });
+      return false;
+    }
+
+    // Check if token exists in localStorage (additional check)
+    const token = this.authService.getToken();
+    if (!token) {
+      console.warn('⚠ RoleGuard: No token found, user session invalid');
+      this.authService.logout();
+      this.router.navigate(['/login'], { replaceUrl: true });
       return false;
     }
 
     const requiredRoles = route.data['roles'] as string[];
 
-    if (requiredRoles && !requiredRoles.includes(currentUser.role)) {
-      // Redirect based on user role
-      if (currentUser.role === 'Admin') {
-        this.router.navigate(['/admin-dashboard']);
-      } else {
-        this.router.navigate(['/dashboard']);
+    // If specific roles are required, check them
+    if (requiredRoles && requiredRoles.length > 0) {
+      if (!requiredRoles.includes(currentUser.role)) {
+        console.warn('⚠ RoleGuard: User role not authorized');
+        console.warn('  - Required roles:', requiredRoles);
+        console.warn('  - User role:', currentUser.role);
+        
+        // Redirect based on user role to prevent infinite loops
+        if (currentUser.role === 'Admin' || currentUser.role === 'SuperAdmin') {
+          this.router.navigate(['/admin-dashboard'], { replaceUrl: true });
+        } else if (currentUser.role === 'Applicant') {
+          this.router.navigate(['/dashboard'], { replaceUrl: true });
+        } else {
+          this.router.navigate(['/login'], { replaceUrl: true });
+        }
+        return false;
       }
-      return false;
     }
 
+    console.log('✓ RoleGuard: Access granted');
     return true;
   }
 }

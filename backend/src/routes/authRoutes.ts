@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { body, validationResult } from 'express-validator';
 import { register, login, getCurrentUser } from '../controllers/authController';
 import { authMiddleware } from '../middleware/auth';
+import { User } from '../models/User';
 
 const router = Router();
 
@@ -42,5 +43,32 @@ const loginValidation = [body('email').isEmail().normalizeEmail(), body('passwor
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
 router.get('/me', authMiddleware, getCurrentUser);
+
+// DEBUG ENDPOINT - Check database users (remove in production)
+router.get('/debug/users', async (req, res) => {
+  try {
+    console.log('\n=== DEBUG: Checking users in database ===');
+    const users = await User.find({}, { email: 1, role: 1, country: 1, applicationType: 1, password_hash: 1 });
+    console.log(`Found ${users.length} users in database`);
+    users.forEach((user, index) => {
+      console.log(`${index + 1}. Email: ${user.email}, Role: ${user.role}, Password hash exists: ${!!user.password_hash}`);
+    });
+    
+    res.json({
+      message: `Found ${users.length} users in database`,
+      users: users.map(u => ({
+        email: u.email,
+        role: u.role,
+        country: u.country,
+        applicationType: u.applicationType,
+        passwordHashExists: !!u.password_hash,
+        passwordHashLength: u.password_hash?.length || 0
+      }))
+    });
+  } catch (error) {
+    console.error('DEBUG Error:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
 
 export default router;

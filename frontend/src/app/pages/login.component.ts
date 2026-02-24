@@ -379,10 +379,35 @@ export class LoginComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    console.log('\n=== LOGIN COMPONENT: Initializing ===');
+    
+    // Ensure complete cleanup for account switching
+    // Clear any residual authentication state
+    console.log('Clearing any residual auth state...');
+    localStorage.removeItem('token');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userClassification');
+    localStorage.removeItem('dashboardInfo');
+    localStorage.removeItem('applicationFormData');
+    sessionStorage.clear();
+    
+    // Force clear the auth service's BehaviorSubjects
+    this.authService.logout();
+    
+    console.log('✓ All state cleared - login form ready');
+    
     this.loginForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
     });
+    
+    // Auto-focus email field for better UX
+    setTimeout(() => {
+      const emailInput = document.querySelector('input#email') as HTMLInputElement;
+      if (emailInput) {
+        emailInput.focus();
+      }
+    }, 100);
   }
 
 
@@ -398,24 +423,38 @@ export class LoginComponent implements OnInit {
 
     console.log('\n=== LOGIN COMPONENT: Submit ===');
     console.log('Form value being sent:', this.loginForm.value);
+    console.log('Attempting login with email:', this.loginForm.value.email);
 
     this.authService.login(this.loginForm.value).subscribe({
       next: (response) => {
         console.log('\n=== LOGIN COMPONENT: Response Received ===');
         console.log('Full response:', response);
         console.log('User object:', response.user);
+        console.log('User role:', response.user?.role);
         console.log('applicationType in response:', response.user?.applicationType);
         console.log('classification:', response.classification);
         
         this.isLoading = false;
-        console.log('🔄 Redirecting to /login-redirect');
-        // Redirect to login redirect component which will handle smart routing
-        this.router.navigate(['/login-redirect']);
+        
+        // Verify login was successful before navigating
+        if (response.token && response.user) {
+          console.log('✓ Login successful for:', response.user.email);
+          console.log('🔄 Redirecting to /login-redirect');
+          // Redirect to login redirect component which will handle smart routing
+          this.router.navigate(['/login-redirect'], { replaceUrl: true });
+        } else {
+          console.error('❌ Invalid login response - missing token or user');
+          this.errorMessage = 'Login response invalid. Please try again.';
+        }
       },
       error: (error) => {
         console.error('❌ Login error:', error);
         this.isLoading = false;
-        this.errorMessage = error.error?.message || 'Login failed. Please try again.';
+        console.error('Error details:', error.error);
+        this.errorMessage = error.error?.message || 'Login failed. Please check your credentials and try again.';
+        
+        // Reset form for retry
+        this.loginForm.patchValue({ password: '' });
       },
     });
   }

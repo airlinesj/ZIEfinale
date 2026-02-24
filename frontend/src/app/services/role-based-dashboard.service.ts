@@ -82,11 +82,24 @@ export class RoleBasedDashboardService {
    * Clear classification (on logout)
    */
   clearClassification(): void {
-    console.log('🚪 Classification cleared');
+    console.log('🚪 Classification cleared - cleaning all state');
     this.classification$.next(null);
     this.dashboardInfo$.next(null);
     localStorage.removeItem('userClassification');
     localStorage.removeItem('dashboardInfo');
+    console.log('✓ All classification state cleared');
+  }
+
+  /**
+   * Force clear classification from memory and storage
+   */
+  forceResetAllState(): void {
+    console.log('🔄 Force resetting all classification state');
+    this.classification$ = new BehaviorSubject<UserClassification | null>(null);
+    this.dashboardInfo$ = new BehaviorSubject<DashboardInfo | null>(null);
+    localStorage.removeItem('userClassification');
+    localStorage.removeItem('dashboardInfo');
+    console.log('✓ All state forcefully reset');
   }
 
   /**

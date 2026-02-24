@@ -47,7 +47,7 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
       experience = req.body.experience ? JSON.parse(req.body.experience) : [];
       chosenGrade = req.body.chosenGrade;
       chosenSpecialistDivision = req.body.chosenSpecialistDivision;
-      sponsors = req.body.sponsors ? JSON.parse(req.body.sponsors) : [];
+      sponsors = req.body.referees ? JSON.parse(req.body.referees) : [];
     } else {
       // Regular JSON payload
       console.log('Parsing JSON payload');
@@ -56,10 +56,36 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
       experience = req.body.experience;
       chosenGrade = req.body.chosenGrade;
       chosenSpecialistDivision = req.body.chosenSpecialistDivision;
-      sponsors = req.body.sponsors;
+      sponsors = req.body.referees || req.body.sponsors;
     }
 
     console.log('Parsed Data:', { personalParticulars, chosenGrade, sponsorsCount: sponsors?.length });
+
+    // Validate required fields before processing
+    if (!personalParticulars || !personalParticulars.firstName || !personalParticulars.lastName) {
+      return res.status(400).json({ message: 'Personal particulars (first name and last name) are required' });
+    }
+    if (!personalParticulars.email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    if (!personalParticulars.phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    if (!personalParticulars.nationalId) {
+      return res.status(400).json({ message: 'National ID is required' });
+    }
+    if (!personalParticulars.dateOfBirth) {
+      return res.status(400).json({ message: 'Date of birth is required' });
+    }
+    if (!personalParticulars.nationality) {
+      return res.status(400).json({ message: 'Nationality is required' });
+    }
+    if (!chosenGrade) {
+      return res.status(400).json({ message: 'Membership grade is required' });
+    }
+    if (!chosenSpecialistDivision) {
+      return res.status(400).json({ message: 'Specialist division is required' });
+    }
 
     // Get membership grade to verify requirements
     const grade = await MembershipGrade.findOne({ gradeName: chosenGrade });
@@ -114,65 +140,11 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
 
     await application.save();
 
-    // Send confirmation email to applicant
-    await sendApplicationConfirmationEmail(
-      personalParticulars.email,
-      `${personalParticulars.firstName} ${personalParticulars.lastName}`,
-      application._id.toString()
-    );
-
-    // Send appraisal emails to sponsors
-    console.log('📧 [EMAIL SENDING] Starting sponsor email send process...');
-    console.log('   Total sponsors to email:', processedSponsors.length);
-    
-    const emailResults = [];
-    for (const sponsor of processedSponsors) {
-      try {
-        console.log(`📧 [EMAIL SENDING] Sending to: "${sponsor.sponsorName}" <${sponsor.sponsorEmail}>`);
-        const result = await sendSponsorAppraisalEmail({
-          applicantName: `${personalParticulars.firstName} ${personalParticulars.lastName}`,
-          applicantEmail: personalParticulars.email,
-          sponsorName: sponsor.sponsorName,
-          sponsorEmail: sponsor.sponsorEmail,
-          applicationId: application._id.toString(),
-          sponsorToken: sponsor.appraisalToken,
-        });
-        emailResults.push({
-          sponsorEmail: sponsor.sponsorEmail,
-          success: result.success,
-          messageId: result.messageId,
-          error: result.error
-        });
-        console.log(`📧 [EMAIL SENDING] Result for ${sponsor.sponsorEmail}:`, result.success ? '✓ SUCCESS' : '✗ FAILED', result.error || result.messageId);
-      } catch (error) {
-        console.error(`❌ [EMAIL SENDING] Exception sending to ${sponsor.sponsorEmail}:`, error);
-        emailResults.push({
-          sponsorEmail: sponsor.sponsorEmail,
-          success: false,
-          error: String(error)
-        });
-      }
-    }
-    console.log('📧 [EMAIL SENDING] Completed. Summary:', emailResults);
-
-    // Send admin notification email with attached PDFs
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@zie.org.zw';
-    try {
-      // Admin notification for new application submitted
-      await sendApplicationConfirmationEmail(
-        adminEmail,
-        'Admin',
-        application._id.toString()
-      );
-    } catch (error) {
-      console.error('Error sending admin notification:', error);
-      // Don't fail the submission if admin email fails
-    }
-
     // Update status to Submitted
     application.status = 'Submitted';
     await application.save();
 
+    // RETURN RESPONSE IMMEDIATELY - Don't wait for email sending
     res.status(201).json({
       message: 'Application created successfully',
       application: {
@@ -180,11 +152,64 @@ export const createApplication = async (req: AuthRequest, res: Response) => {
         status: application.status,
         applicationFee,
       },
-      emailStatus: {
-        sponsorEmailsSent: emailResults,
-        totalSent: emailResults.filter((r: any) => r.success).length,
-        totalFailed: emailResults.filter((r: any) => !r.success).length,
-      },
+    });
+
+    // Send emails asynchronously in the background (don't block the response)
+    setImmediate(async () => {
+      try {
+        console.log('📧 [ASYNC EMAIL] Starting background email processes...');
+        
+        // Send confirmation email to applicant
+        try {
+          await sendApplicationConfirmationEmail(
+            personalParticulars.email,
+            `${personalParticulars.firstName} ${personalParticulars.lastName}`,
+            application._id.toString()
+          );
+          console.log('✓ Confirmation email sent to applicant');
+        } catch (error) {
+          console.error('❌ Failed to send applicant confirmation email:', error);
+        }
+
+        // Send appraisal emails to sponsors
+        console.log('📧 [ASYNC EMAIL] Starting sponsor email send process...');
+        console.log('   Total sponsors to email:', processedSponsors.length);
+        
+        for (const sponsor of processedSponsors) {
+          try {
+            console.log(`📧 [ASYNC EMAIL] Sending to: "${sponsor.sponsorName}" <${sponsor.sponsorEmail}>`);
+            const result = await sendSponsorAppraisalEmail({
+              applicantName: `${personalParticulars.firstName} ${personalParticulars.lastName}`,
+              applicantEmail: personalParticulars.email,
+              sponsorName: sponsor.sponsorName,
+              sponsorEmail: sponsor.sponsorEmail,
+              applicationId: application._id.toString(),
+              sponsorToken: sponsor.appraisalToken,
+            });
+            console.log(`📧 [ASYNC EMAIL] Result for ${sponsor.sponsorEmail}:`, result.success ? '✓ SUCCESS' : '✗ FAILED');
+          } catch (error) {
+            console.error(`❌ [ASYNC EMAIL] Exception sending to ${sponsor.sponsorEmail}:`, error);
+          }
+        }
+        
+        // Send admin notification email
+        const adminEmail = process.env.ADMIN_EMAIL || 'admin@zie.org.zw';
+        try {
+          await sendApplicationConfirmationEmail(
+            adminEmail,
+            'Admin',
+            application._id.toString()
+          );
+          console.log('✓ Admin notification email sent');
+        } catch (error) {
+          console.error('❌ Failed to send admin notification:', error);
+        }
+        
+        console.log('📧 [ASYNC EMAIL] All background emails completed');
+      } catch (error) {
+        console.error('⚠️ Error in background email process:', error);
+        // Errors here don't affect the user since they already got the success response
+      }
     });
   } catch (error: any) {
     console.error('=== Error creating application ===');
@@ -237,45 +262,100 @@ export const createExpatriateApplication = async (req: AuthRequest, res: Respons
     let education: any;
     let experience: any;
     let membershipGrade: string;
+    let chosenSpecialistDivision: string;
     let companyRecommendation: any;
+    let apprenticeReferee: any;
 
     if (req.body.personalParticulars && typeof req.body.personalParticulars === 'string') {
       // FormData payload
       console.log('Parsing expatriate FormData payload');
       personalParticulars = JSON.parse(req.body.personalParticulars);
-      education = req.body.education ? JSON.parse(req.body.education) : {};
-      experience = req.body.experience ? JSON.parse(req.body.experience) : {};
+      education = req.body.education ? JSON.parse(req.body.education) : [];
+      experience = req.body.experience ? JSON.parse(req.body.experience) : [];
       membershipGrade = req.body.membershipGrade;
+      chosenSpecialistDivision = req.body.chosenSpecialistDivision;
       companyRecommendation = req.body.companyRecommendation ? JSON.parse(req.body.companyRecommendation) : {};
+      apprenticeReferee = req.body.apprenticeReferee ? JSON.parse(req.body.apprenticeReferee) : {};
     } else {
       // Regular JSON payload
       console.log('Parsing expatriate JSON payload');
       personalParticulars = req.body.personalParticulars;
-      education = req.body.education || {};
-      experience = req.body.experience || {};
+      education = req.body.education || [];
+      experience = req.body.experience || [];
       membershipGrade = req.body.membershipGrade;
+      chosenSpecialistDivision = req.body.chosenSpecialistDivision;
       companyRecommendation = req.body.companyRecommendation || {};
+      apprenticeReferee = req.body.apprenticeReferee || {};
     }
 
     console.log('Parsed Expatriate Data:', { 
       firstName: personalParticulars?.firstName,
       lastName: personalParticulars?.lastName,
+      phoneNumber: personalParticulars?.phoneNumber,
+      idNumber: personalParticulars?.idNumber,
+      dateOfBirth: personalParticulars?.dateOfBirth,
       membershipGrade,
+      chosenSpecialistDivision,
       companyName: companyRecommendation?.companyName
     });
 
-    // Validate required fields
+    // Validate required fields before processing
     if (!personalParticulars || !personalParticulars.firstName || !personalParticulars.lastName) {
-      return res.status(400).json({ message: 'Personal particulars required' });
+      return res.status(400).json({ message: 'Personal particulars (first name and last name) are required' });
     }
-
+    if (!personalParticulars.email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    if (!personalParticulars.phoneNumber && personalParticulars.phoneNumber !== 0) {
+      console.error('🔴 Phone number missing! Available fields:', Object.keys(personalParticulars));
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    if (!personalParticulars.idNumber && personalParticulars.idNumber !== 0) {
+      console.error('🔴 ID number missing! Available fields:', Object.keys(personalParticulars));
+      return res.status(400).json({ message: 'Passport/National ID is required' });
+    }
+    if (!personalParticulars.dateOfBirth) {
+      return res.status(400).json({ message: 'Date of birth is required' });
+    }
+    if (!personalParticulars.country) {
+      return res.status(400).json({ message: 'Country is required' });
+    }
+    if (!personalParticulars.nationality) {
+      return res.status(400).json({ message: 'Nationality is required' });
+    }
     if (!membershipGrade) {
       return res.status(400).json({ message: 'Membership grade is required' });
     }
-
+    // Specialist division is now optional for expatriate applications
+    // if (!chosenSpecialistDivision) {
+    //   return res.status(400).json({ message: 'Specialist division is required' });
+    // }
     if (!companyRecommendation || !companyRecommendation.companyName) {
       return res.status(400).json({ message: 'Company recommendation details required' });
     }
+    
+    // Apprentice referee is now optional - validation commented out
+    // console.log('🔍 Apprentice Referee Validation:');
+    // console.log('  - apprenticeReferee:', apprenticeReferee);
+    // console.log('  - refereeEmail:', apprenticeReferee?.refereeEmail);
+    // console.log('  - refereeName:', apprenticeReferee?.refereeName);
+    // console.log('  - Full object:', JSON.stringify(apprenticeReferee, null, 2));
+    // 
+    // if (!apprenticeReferee || !apprenticeReferee.refereeEmail) {
+    //   console.error('❌ Missing apprentice referee email!');
+    //   console.error('  - Full object:', JSON.stringify(apprenticeReferee, null, 2));
+    //   return res.status(400).json({ 
+    //     message: 'Apprentice referee email is required',
+    //     receivedData: apprenticeReferee
+    //   });
+    // }
+    // if (!apprenticeReferee.refereeName) {
+    //   console.error('❌ Missing apprentice referee name!');
+    //   return res.status(400).json({ message: 'Apprentice referee name is required' });
+    // }
+
+    // Get uploaded letter file (if any)
+    const letterFile = (req.files as any)?.letterFile?.[0];
 
     // Get membership grade to verify it exists
     const grade = await MembershipGrade.findOne({ gradeName: membershipGrade });
@@ -287,28 +367,70 @@ export const createExpatriateApplication = async (req: AuthRequest, res: Respons
     const exchangeRate = parseFloat(process.env.EXCHANGE_RATE || '0.015');
     const applicationFee = calculateApplicationFee(grade.baseFee, exchangeRate);
 
+    // Map field names to schema expectations (phoneNumber -> phone, idNumber -> nationalId)
+    const mappedPersonalParticulars = {
+      firstName: personalParticulars.firstName,
+      lastName: personalParticulars.lastName,
+      email: personalParticulars.email,
+      phone: personalParticulars.phoneNumber, // Map phoneNumber to phone
+      nationalId: personalParticulars.idNumber, // Map idNumber to nationalId
+      dateOfBirth: personalParticulars.dateOfBirth,
+      nationality: personalParticulars.nationality,
+      professionalNumber: personalParticulars.professionalNumber,
+    };
+    
+    console.log('=== DEBUGGING MAPPED DATA ===');
+    console.log('Mapped personalParticulars.phone:', mappedPersonalParticulars.phone);
+    console.log('Mapped personalParticulars.nationalId:', mappedPersonalParticulars.nationalId);
+    console.log('chosenSpecialistDivision:', chosenSpecialistDivision);
+    console.log('Full mappedPersonalParticulars:', JSON.stringify(mappedPersonalParticulars));
+
+    // Ensure education and experience are arrays
+    const educationArray = Array.isArray(education) ? education : (education ? [education] : []);
+    const experienceArray = Array.isArray(experience) ? experience : (experience ? [experience] : []);
+
     // Create expatriate application (no sponsors/referees)
     const application = new Application({
       userId: req.userId,
-      personalParticulars,
-      education: education || {},
-      experience: experience || {},
+      personalParticulars: mappedPersonalParticulars,
+      education: educationArray,
+      experience: experienceArray,
       chosenGrade: membershipGrade,
       applicationFee,
       applicationType: 'expatriate',
+      status: 'Draft',
+      paymentStatus: 'pending',
       documents: {
-        companyRecommendationLetterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+        companyRecommendationLetterPath: letterFile?.filename || '',
       },
       uploadedFiles: {
-        companyRecommendationLetterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+        companyRecommendationLetterPath: letterFile?.filename || '',
       },
       companyRecommendation: {
         companyName: companyRecommendation.companyName,
         contactPerson: companyRecommendation.contactPerson,
-        letterPath: (req.files as any)?.companyRecommendation?.[0]?.filename || '',
+        letterPath: letterFile?.filename || '',
       },
       sponsors: [], // No sponsors for expatriates
-      referees: [], // No referees for expatriates
+      apprenticeReferee: {
+        refereeName: apprenticeReferee.refereeName,
+        refereeEmail: apprenticeReferee.refereeEmail,
+        refereeRelationship: apprenticeReferee.refereeRelationship,
+        appraisalToken: crypto.randomBytes(32).toString('hex'),
+      },
+      adminApprovals: [],
+      adminChecklist: {
+        photo: false,
+        m1Form: false,
+        signature: false,
+        trainingReport: false,
+        projectReport: false,
+        organogram: false,
+        sponsorships: false,
+        certificates: false,
+      },
+      adminNotes: '',
+      confidentialFlag: false,
       userSummary: `Expatriate Application: ${personalParticulars.firstName} ${personalParticulars.lastName} applied for ${membershipGrade}`,
     });
 
@@ -318,19 +440,16 @@ export const createExpatriateApplication = async (req: AuthRequest, res: Respons
       education?.fieldOfEngineering || 'General'
     );
 
+    // Save initial draft
     await application.save();
-
-    // Send confirmation email to applicant (no referees/sponsors emails needed for expatriates)
-    await sendApplicationConfirmationEmail(
-      personalParticulars.email,
-      `${personalParticulars.firstName} ${personalParticulars.lastName}`,
-      application._id.toString()
-    );
+    console.log('✓ Expatriate application saved (Draft):', application._id);
 
     // Update status to Submitted
     application.status = 'Submitted';
     await application.save();
+    console.log('✓ Expatriate application status updated to Submitted:', application._id);
 
+    // RETURN RESPONSE IMMEDIATELY - Don't wait for email sending
     res.status(201).json({
       message: 'Expatriate application created successfully',
       id: application._id,
@@ -341,6 +460,52 @@ export const createExpatriateApplication = async (req: AuthRequest, res: Respons
         applicationType: 'expatriate',
       },
     });
+
+    // Send emails asynchronously in the background (don't block the response)
+    setImmediate(async () => {
+      try {
+        console.log('📧 [ASYNC EMAIL] Starting background email processes for expatriate...');
+        
+        // Send confirmation email to applicant
+        try {
+          await sendApplicationConfirmationEmail(
+            mappedPersonalParticulars.email,
+            `${mappedPersonalParticulars.firstName} ${mappedPersonalParticulars.lastName}`,
+            application._id.toString()
+          );
+          console.log('✓ [ASYNC EMAIL] Confirmation email sent to applicant');
+        } catch (error) {
+          console.error('❌ [ASYNC EMAIL] Failed to send applicant confirmation email:', error);
+        }
+
+        // Send appraisal email to apprentice referee (if provided)
+        if (apprenticeReferee && apprenticeReferee.refereeEmail) {
+          try {
+            console.log('📧 [ASYNC EMAIL] Sending appraisal email to apprentice referee:', apprenticeReferee.refereeEmail);
+            const refereeToken = crypto.randomBytes(32).toString('hex');
+            // Update the token in the application
+            application.apprenticeReferee!.appraisalToken = refereeToken;
+            await sendSponsorAppraisalEmail({
+              applicantName: `${mappedPersonalParticulars.firstName} ${mappedPersonalParticulars.lastName}`,
+              applicantEmail: mappedPersonalParticulars.email,
+              sponsorName: apprenticeReferee.refereeName,
+              sponsorEmail: apprenticeReferee.refereeEmail,
+              applicationId: application._id.toString(),
+              sponsorToken: refereeToken,
+            });
+            console.log('✓ [ASYNC EMAIL] Appraisal email sent to apprentice referee');
+          } catch (emailError) {
+            console.error('❌ [ASYNC EMAIL] Failed to send appraisal email to referee:', emailError);
+          }
+        } else {
+          console.log('ℹ️  [ASYNC EMAIL] No apprentice referee provided - skipping appraisal email');
+        }
+        
+        console.log('📧 [ASYNC EMAIL] All background emails completed for expatriate application');
+      } catch (error) {
+        console.error('⚠️ [ASYNC EMAIL] Error in background email process:', error);
+      }
+    });
   } catch (error: any) {
     console.error('=== Error creating expatriate application ===');
     console.error('Error message:', error?.message);
@@ -348,8 +513,8 @@ export const createExpatriateApplication = async (req: AuthRequest, res: Respons
     console.error('Full error:', error);
     
     // Clean up uploaded files if application creation fails
-    if ((req.files as any)?.companyRecommendation?.[0]?.filename) {
-      deleteUploadedFile((req.files as any).companyRecommendation[0].filename);
+    if ((req.files as any)?.letterFile?.[0]?.filename) {
+      deleteUploadedFile((req.files as any).letterFile[0].filename);
     }
     
     const errorResponse = {
@@ -1054,6 +1219,21 @@ export const passInterview = async (req: AuthRequest, res: Response) => {
     application.status = 'Passed';
     application.interviewPassedDate = new Date();
 
+    // Get admin user info for tracking
+    const { User } = require('../models/User');
+    const admin = await User.findById(req.userId);
+    
+    // Set up certificate approval workflow (same as expatriates)
+    // Status 'pending' indicates certificate awaiting super admin approval
+    application.admissionUpdate = {
+      status: 'pending',
+      message: `Interview passed on ${new Date().toLocaleDateString()}. Awaiting certificate approval.`,
+      confirmedAt: new Date(),
+      confirmedByEmail: admin?.email || '',
+      confirmedByName: admin?.username || 'Admin',
+      confirmedBy: req.userId as any,
+    };
+
     console.log('Saving application with status=Passed and registrationNumber=' + application.registrationNumber);
     await application.save();
     console.log('Application saved successfully');
@@ -1061,11 +1241,12 @@ export const passInterview = async (req: AuthRequest, res: Response) => {
     // Send email to applicant about passing interview
     try {
       console.log('Sending email to:', application.personalParticulars.email);
+      const emailMessage = `Congratulations! You have passed your interview and will be registered as ZIE Professional Member with Registration Number: ${application.registrationNumber}. Your certificate is being prepared and will be available shortly.`;
       await sendStatusUpdateEmail(
         application.personalParticulars.email,
         `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
         'Passed',
-        `Congratulations! You have been registered as ZIE Professional Member with Registration Number: ${application.registrationNumber}`
+        emailMessage
       );
       console.log('Email sent successfully');
     } catch (emailError) {
@@ -1089,6 +1270,119 @@ export const passInterview = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Error in passInterview:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+};
+
+// Confirm certificate assignment for passed applicants (admin only)
+// Works for both expatriates and local applicants who passed interviews
+export const confirmExpatriateAdmission = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, message } = req.body;
+
+    console.log('=== Confirm Certificate Assignment Request ===');
+    console.log('Application ID:', id);
+    console.log('Status:', status);
+    console.log('User Role:', req.userRole);
+    console.log('User ID:', req.userId);
+
+    // Verify admin or super admin user
+    if (req.userRole !== 'Admin' && req.userRole !== 'SuperAdmin') {
+      console.error('Non-admin user attempted to confirm admission:', req.userRole);
+      return res.status(403).json({ message: 'Only admins can confirm certificates' });
+    }
+
+    // Validate status
+    if (!['admitted', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be either "admitted" or "rejected"' });
+    }
+
+    const application = await Application.findById(id);
+    if (!application) {
+      console.error('Application not found:', id);
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    // Get admin user info
+    const { User } = require('../models/User');
+    const admin = await User.findById(req.userId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    console.log('Updating certificate assignment status...');
+
+    // For expatriates: Set status to 'Passed' to trigger super admin processing
+    // (This marks that the admin has reviewed and approved for super admin consideration)
+    if (application.applicationType === 'expatriate' && application.status !== 'Passed') {
+      application.status = 'Passed';
+      console.log('Setting expatriate application status to Passed for super admin review');
+    }
+
+    // Generate registration number if not already generated
+    if (!application.registrationNumber && status === 'admitted') {
+      console.log('Generating registration number for admitted expatriate...');
+      const RegistrationNumberService = require('../services/RegistrationNumberService');
+      const newRegNumber = await RegistrationNumberService.generateZIERegistrationNumber();
+      console.log('Generated registration number:', newRegNumber);
+      application.registrationNumber = newRegNumber;
+    }
+
+    // Update admission/certificate status
+    application.admissionUpdate = {
+      status: status,
+      message: message || '',
+      confirmedAt: new Date(),
+      confirmedByEmail: admin.email,
+      confirmedByName: admin.username,
+      confirmedBy: req.userId as any,
+    };
+
+    // If rejected, revert status for reinterview
+    if (status === 'rejected') {
+      application.status = 'Rejected';
+    }
+
+    await application.save();
+    console.log('Certificate assignment status saved successfully');
+
+    // Send status email to applicant
+    try {
+      const emailSubject = status === 'admitted' ? 'Certificate Ready' : 'Application Status Update';
+      const emailMessage = status === 'admitted' 
+        ? `Your certificate has been approved and is ready for collection. Your Registration Number is: ${application.registrationNumber}. ${message ? '\n\n' + message : ''}`
+        : `Your application status has been updated. ${message ? '\n\n' + message : 'Please contact the administrator for more details.'}`;
+
+      await sendStatusUpdateEmail(
+        application.personalParticulars.email,
+        `${application.personalParticulars.firstName} ${application.personalParticulars.lastName}`,
+        emailSubject,
+        emailMessage
+      );
+      console.log('Status email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send status email:', emailError);
+      // Don't fail the request if email fails
+    }
+
+    console.log('Returning response with certificate assignment update');
+
+    res.json({
+      message: `Certificate assignment ${status} successfully`,
+      application: {
+        _id: application._id,
+        status: application.status,
+        registrationNumber: application.registrationNumber,
+        admissionUpdate: application.admissionUpdate,
+      },
+    });
+  } catch (error) {
+    console.error('Error in confirmExpatriateAdmission:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     res.status(500).json({ 
       message: 'Server error', 
